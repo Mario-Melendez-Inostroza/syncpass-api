@@ -1,0 +1,208 @@
+package com.duoc.cursos.integration;
+
+import com.duoc.cursos.exception.GlobalExceptionHandler;
+import com.duoc.cursos.model.Usuario;
+import com.duoc.cursos.repository.UsuarioRepository;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.*;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+@Testcontainers
+public class AuthIntegrationTest {
+
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
+            .withDatabaseName("cursos_test")
+            .withUsername("test_user")
+            .withPassword("test_password")
+            .withReuse(true);
+
+    @Autowired
+    private WebApplicationContext webApplicationContext;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+
+    @BeforeEach
+    void setUp() {
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+        usuarioRepository.deleteAll();
+    }
+
+    @Test
+    @DisplayName("Debería registrar un nuevo usuario con roles y persistirlo en BD")
+    void registrar_usuario_con_roles_exitoso() throws Exception {
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"juan.perez@test.com\",\"password\":\"Password123!\",\"nombre\":\"Juan Pérez\",\"roles\":[\"ADMIN\",\"USER\"]}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.email").value("juan.perez@test.com"))
+                .andExpect(jsonPath("$.nombre").value("Juan Pérez"))
+                .andExpect(jsonPath("$.roles").isArray())
+                .andExpect(jsonPath("$.roles[0]").value("ADMIN"))
+                .andExpect(jsonPath("$.roles[1]").value("USER"));
+
+        Usuario usuario = usuarioRepository.findByEmail("juan.perez@test.com")
+                .orElseThrow(() -> new AssertionError("Usuario debería estar persistido en BD"));
+        assertEquals("Juan Pérez", usuario.getNombre());
+        assertEquals(2, usuario.getRoles().size());
+    }
+
+    @Test
+    @DisplayName("Debería fallar el registro si el email ya existe")
+    void registrar_usuario_duplicado_debe_fallar() throws Exception {
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"maria.garcia@test.com\",\"password\":\"Password123!\",\"nombre\":\"María García\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"maria.garcia@test.com\",\"password\":\"Password123!\",\"nombre\":\"María García\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("CONFLICT"))
+                .andExpect(jsonPath("$.mensaje").value("El email ya está registrado"));
+    }
+
+    @Test
+    @DisplayName("Debería iniciar sesión con credenciales válidas")
+    void login_credenciales_validas() throws Exception {
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"carlos.ramos@test.com\",\"password\":\"Password123!\",\"nombre\":\"Carlos Ramos\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"carlos.ramos@test.com\",\"password\":\"Password123!}\"))"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("Authorization"))
+                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.idToken").exists())
+                .andExpect(jsonPath("$.refreshToken").exists())
+                .andExpect(jsonPath("$.expiresIn").exists());
+    }
+
+    @Test
+    @DisplayName("Debería fallar el login con credenciales inválidas")
+    void login_credenciales_invalidas() throws Exception {
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ana.silva@test.com\",\"password\":\"Password123!\",\"nombre\":\"Ana Silva\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ana.silva@test.com\",\"password\":\"WrongPassword}\"))"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.mensaje").value("Credenciales inválidas"));
+    }
+
+    @Test
+    @DisplayName("Debería cerrar sesión correctamente")
+    void logout_correcto() throws Exception {
+        // Registrar usuario
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"diana.lopez@test.com\",\"password\":\"Password123!\",\"nombre\":\"Diana López\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isCreated());
+
+        // Login
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"diana.lopez@test.com\",\"password\":\"Password123!}\"))"))
+                .andExpect(status().isOk());
+
+        // Obtener token del response header
+        String token = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"diana.lopez@test.com\",\"password\":\"Password123!}\"))"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getHeader("Authorization");
+
+        // Logout con el token obtenido
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", token))
+                .andExpect(status().isNoContent());
+
+        // Logout nuevamente con mismo token
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", token))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("Debería solicitar recuperación de contraseña")
+    void solicitarRecuperacion_contrasena() throws Exception {
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"recovery.test@test.com\",\"password\":\"Password123!\",\"nombre\":\"Recovery Test\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/olvide-contrasena/solicitar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"recovery.test@test.com}\"))"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Debería confirmar recuperación de contraseña")
+    void confirmarRecuperacion_contrasena() throws Exception {
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"reset.test@test.com\",\"password\":\"Password123!\",\"nombre\":\"Reset Test\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/olvide-contrasena/solicitar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"reset.test@test.com}\"))"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/olvide-contrasena/confirmar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"reset.test@test.com\",\"codigo\":\"123456\",\"nuevaContrasena\":\"NewPassword456!}\"))"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Debería fallar confirmación con código inválido")
+    void confirmarRecuperacion_codigo_invalido() throws Exception {
+        mockMvc.perform(post("/api/auth/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"badreset@test.com\",\"password\":\"Password123!\",\"nombre\":\"Bad Reset\",\"roles\":[\"USER\"]}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/olvide-contrasena/confirmar")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"badreset@test.com\",\"codigo\":\"000000\",\"nuevaContrasena\":\"NewPassword456!}\"))"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
+    }
+
+    @Test
+    @DisplayName("Health check debe responder OK")
+    void health_check_debe_responders() throws Exception {
+        mockMvc.perform(get("/api/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.service").value("cursos-api"));
+    }
+}
