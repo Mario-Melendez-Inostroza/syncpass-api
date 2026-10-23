@@ -1,18 +1,29 @@
 package com.duoc.cursos.service;
 
+import com.duoc.cursos.exception.AuthChallengeException;
 import com.duoc.cursos.model.Usuario;
 import com.duoc.cursos.repository.UsuarioRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
+    /**
+     * Rol que el servidor asigna a todo usuario registrado. Debe existir como grupo en el User Pool.
+     * El cliente no puede elegirlo.
+     */
+    public static final String ROL_POR_DEFECTO = "USER";
 
     private final CognitoIdentityProviderClient cognitoClient;
     private final UsuarioRepository usuarioRepository;
@@ -32,10 +43,18 @@ public class AuthService {
     }
 
     /**
-     * FLUJO: REGISTRO Y COPIA LOCAL CON MÚLTIPLES ROLES
+     * FLUJO: REGISTRO, CONFIRMACIÓN AUTOMÁTICA Y COPIA LOCAL
+     *
+     * Orden: SignUp -> AdminConfirmSignUp -> AdminAddUserToGroup (rol del servidor) -> guardar en PostgreSQL.
+     *
+     * No es @Transactional a propósito: Cognito y PostgreSQL no comparten transacción, y con @Transactional
+     * el commit (donde Hibernate detecta p. ej. un email duplicado) ocurriría después de este método,
+     * fuera del bloque que compensa. Cada save() ya corre en su propia transacción.
+     *
+     * Si algo falla después del SignUp se intenta borrar el usuario de Cognito (compensación) para poder
+     * reintentar el registro; si la compensación también falla, se registra una INCONSISTENCIA en el log.
      */
-    @Transactional
-    public Usuario registrar(String email, String password, String nombre, Set<String> roles) {
+    public Usuario registrar(String email, String password, String nombre) {
         // 1. Registro en Cognito
         SignUpRequest.Builder signUpBuilder = SignUpRequest.builder()
                 .clientId(clientId)
@@ -54,24 +73,53 @@ public class AuthService {
         SignUpResponse signUpResponse = cognitoClient.signUp(signUpBuilder.build());
         String cognitoSub = signUpResponse.userSub();
 
-        // 2. Asignación a Grupos en Cognito (Roles)
-        for (String rol : roles) {
-            AdminAddUserToGroupRequest groupRequest = AdminAddUserToGroupRequest.builder()
+        try {
+            // 2. Confirmación automática (sin código de verificación). Requiere cognito-idp:AdminConfirmSignUp.
+            cognitoClient.adminConfirmSignUp(AdminConfirmSignUpRequest.builder()
                     .userPoolId(userPoolId)
                     .username(email)
-                    .groupName(rol)
-                    .build();
-            cognitoClient.adminAddUserToGroup(groupRequest);
+                    .build());
+
+            // 3. Asignación al grupo del rol por defecto. Requiere cognito-idp:AdminAddUserToGroup.
+            cognitoClient.adminAddUserToGroup(AdminAddUserToGroupRequest.builder()
+                    .userPoolId(userPoolId)
+                    .username(email)
+                    .groupName(ROL_POR_DEFECTO)
+                    .build());
+
+            // 4. Persistencia en Base de Datos Local
+            Usuario usuarioLocal = new Usuario();
+            usuarioLocal.setId(cognitoSub);
+            usuarioLocal.setEmail(email);
+            usuarioLocal.setNombre(nombre);
+            usuarioLocal.setRoles(new HashSet<>(Set.of(ROL_POR_DEFECTO)));
+
+            return usuarioRepository.save(usuarioLocal);
+        } catch (RuntimeException ex) {
+            compensarRegistroFallido(email, cognitoSub, ex);
+            throw ex;
         }
+    }
 
-        // 3. Persistencia en Base de Datos Local
-        Usuario usuarioLocal = new Usuario();
-        usuarioLocal.setId(cognitoSub);
-        usuarioLocal.setEmail(email);
-        usuarioLocal.setNombre(nombre);
-        usuarioLocal.setRoles(roles);
-
-        return usuarioRepository.save(usuarioLocal);
+    /**
+     * Intenta borrar de Cognito al usuario recién creado cuando el registro no pudo completarse.
+     * Es "mejor esfuerzo" (requiere cognito-idp:AdminDeleteUser): nunca oculta la excepción original.
+     * No se registran contraseñas, tokens ni el email; se identifica al usuario por su sub.
+     */
+    private void compensarRegistroFallido(String email, String cognitoSub, RuntimeException causa) {
+        log.error("Registro fallido tras crear el usuario en Cognito (sub={}). Causa: {}",
+                cognitoSub, causa.getClass().getSimpleName(), causa);
+        try {
+            cognitoClient.adminDeleteUser(AdminDeleteUserRequest.builder()
+                    .userPoolId(userPoolId)
+                    .username(email)
+                    .build());
+            log.warn("Usuario sub={} eliminado de Cognito para permitir reintentar el registro", cognitoSub);
+        } catch (RuntimeException ex) {
+            log.error("INCONSISTENCIA: el usuario sub={} quedó en Cognito sin registro local completo y no se pudo "
+                    + "revertir ({}). Eliminarlo manualmente o completar su alta.",
+                    cognitoSub, ex.getClass().getSimpleName());
+        }
     }
 
     /**
@@ -95,7 +143,12 @@ public class AuthService {
         }
 
         InitiateAuthResponse authResponse = cognitoClient.initiateAuth(authBuilder.build());
-        return authResponse.authenticationResult();
+        AuthenticationResultType result = authResponse.authenticationResult();
+        if (result == null) {
+            // Cognito respondió con un reto (p. ej. NEW_PASSWORD_REQUIRED) que este endpoint no implementa.
+            throw new AuthChallengeException(authResponse.challengeNameAsString());
+        }
+        return result;
     }
 
     /**

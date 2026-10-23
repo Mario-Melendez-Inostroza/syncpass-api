@@ -36,3 +36,13 @@ out/
 ### VS Code ###
 .vscode/
 .env
+
+### Secretos y archivos locales ###
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+application-local.*
+.aws/

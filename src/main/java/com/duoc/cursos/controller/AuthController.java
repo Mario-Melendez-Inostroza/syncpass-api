@@ -24,7 +24,8 @@ public class AuthController {
 
     @PostMapping("/registro")
     public ResponseEntity<Usuario> registrar(@Valid @RequestBody RegistroRequest req) {
-        Usuario usuario = authService.registrar(req.getEmail(), req.getPassword(), req.getNombre(), req.getRoles());
+        // El rol lo asigna el servidor (AuthService.ROL_POR_DEFECTO); req.getRoles() se ignora a propósito.
+        Usuario usuario = authService.registrar(req.getEmail(), req.getPassword(), req.getNombre());
         return ResponseEntity.ok(usuario);
     }
 
@@ -77,6 +78,10 @@ public class AuthController {
         @NotBlank @Size(max = 100)
         private String nombre;
 
+        /**
+         * Se conserva solo por compatibilidad con clientes existentes (p. ej. la web envía "roles").
+         * IGNORADO: el servidor asigna el rol; el cliente no puede solicitar privilegios.
+         */
         private Set<String> roles;
     }
 

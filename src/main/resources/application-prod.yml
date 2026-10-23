@@ -1,0 +1,18 @@
+# Perfil de producción. Se activa con la variable de entorno SPRING_PROFILES_ACTIVE=prod
+# (por ejemplo en el servicio de EC2, o al probar localmente contra Supabase).
+# Se suma a application.yml: solo sobrescribe lo que aparece aquí.
+spring:
+  datasource:
+    # Sin valores por defecto: si falta una de estas variables la aplicación NO arranca,
+    # en lugar de caer silenciosamente a localhost o a postgres/postgres.
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      data-source-properties:
+        # Respaldo de seguridad: exige SSL cuando la URL no trae sslmode.
+        # Si DATABASE_URL incluye sslmode (p. ej. verify-full), el valor de la URL prevalece.
+        sslmode: require
+  jpa:
+    # No volcar el SQL en los logs de producción.
+    show-sql: false

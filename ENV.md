@@ -29,9 +29,10 @@ Este documento describe todas las variables de entorno necesarias para ejecutar 
 
 | Variable | Default | Descripción |
 |----------|---------|-------------|
-| `SPRING_PROFILES_ACTIVE` | `default` | Perfil de Spring activo (`dev`, `prod`, `test`) |
-| `SERVER_PORT` | `8080` | Puerto del servidor HTTP |
-| `LOG_LEVEL` | `INFO` | Nivel de logging (`DEBUG`, `INFO`, `WARN`, `ERROR`) |
+| `SPRING_PROFILES_ACTIVE` | `default` | Perfil de Spring activo. Solo existe configuración para `prod` (`application-prod.yml`): exige `DATABASE_*`, fuerza SSL y desactiva `show-sql`. **Solo funciona como variable de entorno real o como argumento `--spring.profiles.active=prod`, no desde el `.env`.** Ver `docs/ENVS.md` |
+| `DATABASE_POOL_MAX_SIZE` | `5` | Máximo de conexiones del pool de base de datos (el plan gratuito de Supabase tiene pocas) |
+| `SERVER_PORT` | `8080` | Puerto del servidor HTTP. Solo como variable de entorno real o `--server.port=...`; no desde el `.env` |
+| `LOG_LEVEL` | `INFO` | **Sin efecto actualmente**: ningún archivo de configuración la utiliza |
 | `CORS_ENABLED` | `true` | Habilita/deshabilita CORS completamente. Poner `false` cuando la app pasa por API Gateway que maneja CORS (evita doble CORS) |
 | `CORS_ALLOWED_ORIGINS` | `*` | Orígenes permitidos separados por coma. Usa `*` para todos. Ej: `https://app.midominio.com,https://admin.midominio.com` |
 | `CORS_ALLOWED_METHODS` | `GET,POST,PUT,PATCH,DELETE,OPTIONS` | Métodos HTTP permitidos |
