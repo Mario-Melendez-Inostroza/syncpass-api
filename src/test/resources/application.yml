@@ -13,6 +13,17 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+  # Las pruebas usan H2 con el esquema generado desde las entidades (create-drop), no el SQL de
+  # Flyway, que es específico de PostgreSQL.
+  flyway:
+    enabled: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Solo para que exista el bean JwtDecoder. NimbusJwtDecoder descarga las claves de forma
+          # perezosa: un token mal formado se rechaza antes de pedirlas, así que no hay red.
+          jwk-set-uri: http://localhost:0/jwks-de-prueba
 
 aws:
   cognito:

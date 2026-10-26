@@ -1,5 +1,6 @@
 package com.duoc.cursos.exception;
 
+import jakarta.validation.ConstraintViolationException;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +11,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 
@@ -132,6 +134,20 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Petición de refresh sin identificar al usuario teniendo el App Client un client secret.
+     * Es un error del cliente (falta un campo), no un fallo del servidor: 400 con explicación,
+     * para no dejar un 500 opaco como única pista.
+     */
+    @ExceptionHandler(RefreshUsernameRequiredException.class)
+    public ResponseEntity<ErrorResponse> handleRefreshUsernameRequired(RefreshUsernameRequiredException ex) {
+        log.warn("Refresh sin 'email': el App Client tiene client secret y Cognito exige SECRET_HASH");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponse("REFRESH_EMAIL_REQUIRED",
+                        "Para renovar el token hay que enviar también 'email'",
+                        HttpStatus.BAD_REQUEST.value()));
+    }
+
+    /**
      * Resto de errores de Cognito: principalmente permisos IAM insuficientes del backend
      * (AccessDeniedException) u otros fallos del servicio. Los más específicos se resuelven antes.
      */
@@ -168,8 +184,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
         log.warn("Violación de integridad en la base de datos: {}", ex.getClass().getSimpleName());
+        // Mensaje genérico a propósito: esta excepción la provoca cualquier restricción única (email,
+        // uuid de una asistencia...), así que no se puede afirmar cuál sin inspeccionar el mensaje de BD.
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(new ErrorResponse("CONFLICT", "El email ya está registrado", HttpStatus.CONFLICT.value()));
+                .body(new ErrorResponse("CONFLICT", "Ya existe un registro con esos datos", HttpStatus.CONFLICT.value()));
+    }
+
+    @ExceptionHandler(RecursoNoEncontradoException.class)
+    public ResponseEntity<ErrorResponse> handleRecursoNoEncontrado(RecursoNoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse("NOT_FOUND", ex.getMessage(), HttpStatus.NOT_FOUND.value()));
     }
 
     // --- Validación de DTOs y JSON ---
@@ -187,6 +211,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse("BAD_REQUEST", "El cuerpo de la petición no es un JSON válido", HttpStatus.BAD_REQUEST.value()));
+    }
+
+    /** Validación a nivel de método o de parámetro (@Validated). Sin este handler caería al 500 genérico. */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        ErrorResponse error = new ErrorResponse("VALIDATION_ERROR", "Datos de entrada inválidos", HttpStatus.BAD_REQUEST.value());
+        ex.getConstraintViolations().forEach(v ->
+                error.getDetalles().put(v.getPropertyPath().toString(), v.getMessage())
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    /** Un parámetro con formato incorrecto, p. ej. ?desde=ayer en vez de un instante ISO-8601. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        ErrorResponse error = new ErrorResponse("BAD_REQUEST", "Parámetro con formato inválido", HttpStatus.BAD_REQUEST.value());
+        error.getDetalles().put(ex.getName(), "Formato inválido");
+        return ResponseEntity.badRequest().body(error);
     }
 
     // --- Genérica ---

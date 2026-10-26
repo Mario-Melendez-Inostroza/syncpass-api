@@ -13,11 +13,29 @@ spring:
       minimum-idle: 1
   jpa:
     hibernate:
-      ddl-auto: update
+      # Flyway es la única autoridad sobre el esquema. Pasar a "validate" solo cuando el diff entre
+      # build/schema.sql y la base real cuadre (ver docs/MIGRACIONES.md).
+      ddl-auto: none
     show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    # La base de Supabase ya tiene tablas (creadas por Hibernate) y no tiene flyway_schema_history.
+    # Con baseline-on-migrate Flyway da V1 por aplicada ahí y ejecuta solo V2; en una base vacía no
+    # baselinea y corre V1 y V2. OJO: marca la base, no comprueba que coincida con V1 (docs/MIGRACIONES.md).
+    baseline-on-migrate: true
+    baseline-version: "1"
+    # Los datos de demostración NO van aquí: solo los carga el perfil "demo" (application-demo.yml).
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Se deriva de variables que ya existen. Spring Security lo resuelve de forma perezosa, así que no hace
+          # falta red para arrancar. COGNITO_ISSUER_URI permite sobrescribirlo si el pool cambia de región.
+          issuer-uri: ${COGNITO_ISSUER_URI:https://cognito-idp.${AWS_REGION:us-east-1}.amazonaws.com/${AWS_COGNITO_USER_POOL_ID:us-east-1_xxxxxxxxx}}
 
   # DATABASE_URL debe ser una URL JDBC (jdbc:postgresql://...), no la URI postgres:// que muestra Supabase.
   # Usuario y contraseña van aparte en DATABASE_USER y DATABASE_PASSWORD. Ver docs/ENVS.md.
@@ -41,3 +59,11 @@ app:
     exposed-headers: ${CORS_EXPOSED_HEADERS:Authorization,Content-Type}
     allow-credentials: ${CORS_ALLOW_CREDENTIALS:false}
     max-age: ${CORS_MAX_AGE:3600}
+  # Notificaciones push vía ntfy. El tópico se deriva del email (SHA-256 truncado) y es el único
+  # secreto del canal, por eso no existe un endpoint que lo devuelva.
+  notification:
+    base-url: ${NTFY_BASE_URL:https://ntfy.sh}
+    topic-prefix: ${NTFY_TOPIC_PREFIX:app_vibe_}
+    topic-hash-length: ${NTFY_TOPIC_HASH_LENGTH:20}
+    connect-timeout: ${NTFY_CONNECT_TIMEOUT:10}
+    read-timeout: ${NTFY_READ_TIMEOUT:30}

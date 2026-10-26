@@ -1,6 +1,7 @@
 package com.duoc.cursos.service;
 
 import com.duoc.cursos.exception.AuthChallengeException;
+import com.duoc.cursos.exception.RefreshUsernameRequiredException;
 import com.duoc.cursos.model.Usuario;
 import com.duoc.cursos.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -251,5 +252,83 @@ class AuthServiceTest {
 
         assertSame(sinConfirmar, assertThrows(UserNotConfirmedException.class,
                 () -> service.login(EMAIL, PASSWORD)));
+    }
+
+    // ------------------------------------------------------------------ refresh
+
+    private static InitiateAuthRequest capturarInitiateAuth(CognitoIdentityProviderClient cognito) {
+        ArgumentCaptor<InitiateAuthRequest> captor = ArgumentCaptor.forClass(InitiateAuthRequest.class);
+        verify(cognito).initiateAuth(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    @DisplayName("Refresh: usa REFRESH_TOKEN_AUTH y devuelve el resultado de Cognito sin transformarlo")
+    void refrescarTokens_usaRefreshTokenAuth() {
+        AuthenticationResultType esperado = AuthenticationResultType.builder()
+                .accessToken("acceso-nuevo").idToken("id-nuevo").expiresIn(3600).build();
+        when(cognito.initiateAuth(any(InitiateAuthRequest.class)))
+                .thenReturn(InitiateAuthResponse.builder().authenticationResult(esperado).build());
+
+        AuthenticationResultType obtenido = service.refrescarTokens("refresco-ficticio", EMAIL);
+
+        assertSame(esperado, obtenido);
+        InitiateAuthRequest enviado = capturarInitiateAuth(cognito);
+        assertEquals(AuthFlowType.REFRESH_TOKEN_AUTH, enviado.authFlow());
+        assertEquals("refresco-ficticio", enviado.authParameters().get("REFRESH_TOKEN"));
+        // Sin client secret configurado no se debe enviar SECRET_HASH.
+        assertFalse(enviado.authParameters().containsKey("SECRET_HASH"));
+    }
+
+    @Test
+    @DisplayName("Refresh: con client secret se envía SECRET_HASH calculado con el username")
+    void refrescarTokens_conClientSecret_incluyeSecretHash() {
+        ReflectionTestUtils.setField(service, "clientSecret", "secreto-de-prueba");
+        when(cognito.initiateAuth(any(InitiateAuthRequest.class)))
+                .thenReturn(InitiateAuthResponse.builder()
+                        .authenticationResult(AuthenticationResultType.builder().accessToken("a").build())
+                        .build());
+
+        service.refrescarTokens("refresco-ficticio", EMAIL);
+
+        InitiateAuthRequest enviado = capturarInitiateAuth(cognito);
+        assertTrue(enviado.authParameters().containsKey("SECRET_HASH"));
+        assertFalse(enviado.authParameters().get("SECRET_HASH").isBlank());
+    }
+
+    @Test
+    @DisplayName("Refresh: con client secret y sin username falla antes de llamar a Cognito")
+    void refrescarTokens_conClientSecretSinUsername_noLlamaACognito() {
+        ReflectionTestUtils.setField(service, "clientSecret", "secreto-de-prueba");
+
+        assertThrows(RefreshUsernameRequiredException.class,
+                () -> service.refrescarTokens("refresco-ficticio", null));
+        assertThrows(RefreshUsernameRequiredException.class,
+                () -> service.refrescarTokens("refresco-ficticio", "   "));
+
+        verifyNoInteractions(cognito);
+    }
+
+    @Test
+    @DisplayName("Refresh: un reto de Cognito no produce NullPointerException sino AuthChallengeException")
+    void refrescarTokens_conReto_lanzaAuthChallengeException() {
+        when(cognito.initiateAuth(any(InitiateAuthRequest.class)))
+                .thenReturn(InitiateAuthResponse.builder()
+                        .challengeName(ChallengeNameType.MFA_SETUP).build());
+
+        AuthChallengeException ex = assertThrows(AuthChallengeException.class,
+                () -> service.refrescarTokens("refresco-ficticio", EMAIL));
+
+        assertEquals("MFA_SETUP", ex.getChallengeName());
+    }
+
+    @Test
+    @DisplayName("Refresh: un refresh token caducado se propaga tal cual para que lo traduzca el manejador")
+    void refrescarTokens_propagaNotAuthorized() {
+        NotAuthorizedException caducado = NotAuthorizedException.builder().message("refresh token caducado").build();
+        when(cognito.initiateAuth(any(InitiateAuthRequest.class))).thenThrow(caducado);
+
+        assertSame(caducado, assertThrows(NotAuthorizedException.class,
+                () -> service.refrescarTokens("caducado", EMAIL)));
     }
 }

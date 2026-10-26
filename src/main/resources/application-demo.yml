@@ -1,0 +1,10 @@
+# Perfil "demo": SPRING_PROFILES_ACTIVE=demo
+#
+# Añade a Flyway la carpeta con datos de demostración ficticios (db/demo/R__datos_demo.sql). Se suma a
+# application.yml, que NO incluye esa carpeta: sin este perfil los datos demo nunca se insertan.
+#
+# No combinar con el perfil prod. Si hiciera falta, activarlos juntos es una decisión consciente:
+# SPRING_PROFILES_ACTIVE=prod,demo cargaría los datos ficticios en la base de producción.
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/demo

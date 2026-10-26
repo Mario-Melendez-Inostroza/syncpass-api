@@ -2,6 +2,7 @@ package com.duoc.cursos.controller;
 
 import com.duoc.cursos.exception.AuthChallengeException;
 import com.duoc.cursos.exception.GlobalExceptionHandler;
+import com.duoc.cursos.exception.RefreshUsernameRequiredException;
 import com.duoc.cursos.model.Usuario;
 import com.duoc.cursos.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,8 +85,8 @@ class AuthControllerTest {
         registrar("{\"email\":\"usuario.prueba@example.com\",\"password\":\"Password-de-prueba-1!\","
                 + "\"nombre\":\"Usuario Prueba\",\"roles\":[\"ADMIN\"]}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles.length()").value(1))
-                .andExpect(jsonPath("$.roles[0]").value("USER"));
+                .andExpect(jsonPath("$.data.roles.length()").value(1))
+                .andExpect(jsonPath("$.data.roles[0]").value("USER"));
 
         // La firma del servicio ya no admite roles: solo recibe email, password y nombre.
         verify(authService).registrar("usuario.prueba@example.com", "Password-de-prueba-1!", "Usuario Prueba");
@@ -98,10 +99,10 @@ class AuthControllerTest {
 
         registrar(REGISTRO_VALIDO)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("sub-ficticio-123"))
-                .andExpect(jsonPath("$.email").value("usuario.prueba@example.com"))
-                .andExpect(jsonPath("$.nombre").value("Usuario Prueba"))
-                .andExpect(jsonPath("$.roles[0]").value("USER"));
+                .andExpect(jsonPath("$.data.id").value("sub-ficticio-123"))
+                .andExpect(jsonPath("$.data.email").value("usuario.prueba@example.com"))
+                .andExpect(jsonPath("$.data.nombre").value("Usuario Prueba"))
+                .andExpect(jsonPath("$.data.roles[0]").value("USER"));
     }
 
     // ------------------------------------------------------------------ registro: entrada inválida
@@ -277,10 +278,10 @@ class AuthControllerTest {
 
         login(LOGIN_VALIDO)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").value("acceso-ficticio"))
-                .andExpect(jsonPath("$.idToken").value("id-ficticio"))
-                .andExpect(jsonPath("$.refreshToken").value("refresco-ficticio"))
-                .andExpect(jsonPath("$.expiresIn").value(3600));
+                .andExpect(jsonPath("$.data.accessToken").value("acceso-ficticio"))
+                .andExpect(jsonPath("$.data.idToken").value("id-ficticio"))
+                .andExpect(jsonPath("$.data.refreshToken").value("refresco-ficticio"))
+                .andExpect(jsonPath("$.data.expiresIn").value(3600));
     }
 
     @Test
@@ -341,11 +342,95 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Logout con Bearer -> 204")
-    void logout_conBearer_204() throws Exception {
+    @DisplayName("Logout con Bearer -> 200 con envoltorio ApiResponse")
+    void logout_conBearer_200() throws Exception {
         mvc.perform(post("/api/auth/logout").header("Authorization", "Bearer token-ficticio"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Logout exitoso"));
 
         verify(authService).logout("token-ficticio");
+    }
+
+    // ------------------------------------------------------------------ refresh
+
+    private ResultActions refresh(String json) throws Exception {
+        return mvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    @Test
+    @DisplayName("Refresh: devuelve los tokens de Cognito dentro de ApiResponse")
+    void refresh_devuelveTokensDeCognito() throws Exception {
+        when(authService.refrescarTokens("refresco-ficticio", "usuario.prueba@example.com"))
+                .thenReturn(AuthenticationResultType.builder()
+                        .accessToken("acceso-nuevo").idToken("id-nuevo").expiresIn(3600).build());
+
+        refresh("{\"refreshToken\":\"refresco-ficticio\",\"email\":\"usuario.prueba@example.com\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.accessToken").value("acceso-nuevo"))
+                .andExpect(jsonPath("$.data.idToken").value("id-nuevo"))
+                .andExpect(jsonPath("$.data.expiresIn").value(3600));
+    }
+
+    @Test
+    @DisplayName("Refresh: Cognito no rota el refresh token, se reenvía el que mandó el cliente")
+    void refresh_reenviaElRefreshTokenDelCliente() throws Exception {
+        // authenticationResult().refreshToken() == null es el comportamiento real de REFRESH_TOKEN_AUTH.
+        when(authService.refrescarTokens(anyString(), anyString()))
+                .thenReturn(AuthenticationResultType.builder()
+                        .accessToken("acceso-nuevo").idToken("id-nuevo").expiresIn(3600).build());
+
+        refresh("{\"refreshToken\":\"refresco-ficticio\",\"email\":\"usuario.prueba@example.com\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.refreshToken").value("refresco-ficticio"));
+    }
+
+    @Test
+    @DisplayName("Refresh: si Cognito rota el refresh token, se devuelve el nuevo")
+    void refresh_usaElRefreshTokenRotadoSiLlega() throws Exception {
+        when(authService.refrescarTokens(anyString(), anyString()))
+                .thenReturn(AuthenticationResultType.builder()
+                        .accessToken("acceso-nuevo").idToken("id-nuevo")
+                        .refreshToken("refresco-rotado").expiresIn(3600).build());
+
+        refresh("{\"refreshToken\":\"refresco-ficticio\",\"email\":\"usuario.prueba@example.com\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.refreshToken").value("refresco-rotado"));
+    }
+
+    @Test
+    @DisplayName("Refresh: sin refreshToken -> 400 VALIDATION_ERROR")
+    void refresh_sinRefreshToken_400() throws Exception {
+        refresh("{\"email\":\"usuario.prueba@example.com\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.detalles.refreshToken").exists());
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    @DisplayName("Refresh: email ausente con client secret -> 400 REFRESH_EMAIL_REQUIRED, no 500")
+    void refresh_sinEmailConClientSecret_400() throws Exception {
+        when(authService.refrescarTokens("refresco-ficticio", null))
+                .thenThrow(new RefreshUsernameRequiredException());
+
+        refresh("{\"refreshToken\":\"refresco-ficticio\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("REFRESH_EMAIL_REQUIRED"))
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    @DisplayName("Refresh: refresh token caducado o revocado -> 401 sin filtrar el detalle de AWS")
+    void refresh_tokenCaducado_401() throws Exception {
+        when(authService.refrescarTokens(anyString(), anyString()))
+                .thenThrow(NotAuthorizedException.builder().message(SECRETO_INTERNO).build());
+
+        ResultActions r = refresh("{\"refreshToken\":\"caducado\",\"email\":\"usuario.prueba@example.com\"}")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+        assertSinFuga(r);
     }
 }

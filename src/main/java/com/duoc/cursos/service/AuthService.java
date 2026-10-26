@@ -1,6 +1,7 @@
 package com.duoc.cursos.service;
 
 import com.duoc.cursos.exception.AuthChallengeException;
+import com.duoc.cursos.exception.RefreshUsernameRequiredException;
 import com.duoc.cursos.model.Usuario;
 import com.duoc.cursos.repository.UsuarioRepository;
 import org.slf4j.Logger;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -146,6 +148,46 @@ public class AuthService {
         AuthenticationResultType result = authResponse.authenticationResult();
         if (result == null) {
             // Cognito respondió con un reto (p. ej. NEW_PASSWORD_REQUIRED) que este endpoint no implementa.
+            throw new AuthChallengeException(authResponse.challengeNameAsString());
+        }
+        return result;
+    }
+
+    /**
+     * FLUJO: RENOVACIÓN DE TOKENS (REFRESH)
+     *
+     * Usa el flujo REFRESH_TOKEN_AUTH real de Cognito: no se fabrica ningún token localmente.
+     * Cognito devuelve un accessToken y un idToken nuevos; en este flujo NO rota el refresh token,
+     * por lo que authenticationResult().refreshToken() llega null y el cliente conserva el que ya tenía.
+     *
+     * Limitación real de Cognito: si el App Client tiene client secret, este flujo exige
+     * SECRET_HASH = HMAC-SHA256(username + clientId). El refresh token es opaco (no es un JWT), así que
+     * el username no se puede extraer de él y el cliente tiene que enviarlo. Si falta, se lanza
+     * RefreshUsernameRequiredException en vez de llamar a Cognito con un hash que sabemos inválido.
+     *
+     * @param refreshToken refresh token entregado en el login
+     * @param username     email del usuario; obligatorio solo si hay client secret configurado
+     */
+    public AuthenticationResultType refrescarTokens(String refreshToken, String username) {
+        Map<String, String> authParameters = new HashMap<>();
+        authParameters.put("REFRESH_TOKEN", refreshToken);
+
+        if (clientSecret != null && !clientSecret.isBlank()) {
+            if (username == null || username.isBlank()) {
+                throw new RefreshUsernameRequiredException();
+            }
+            authParameters.put("SECRET_HASH", generateSecretHash(username));
+        }
+
+        InitiateAuthResponse authResponse = cognitoClient.initiateAuth(InitiateAuthRequest.builder()
+                .authFlow(AuthFlowType.REFRESH_TOKEN_AUTH)
+                .clientId(clientId)
+                .authParameters(authParameters)
+                .build());
+
+        AuthenticationResultType result = authResponse.authenticationResult();
+        if (result == null) {
+            // Cognito pidió un reto en lugar de renovar (p. ej. MFA reconfigurada): no hay tokens.
             throw new AuthChallengeException(authResponse.challengeNameAsString());
         }
         return result;
