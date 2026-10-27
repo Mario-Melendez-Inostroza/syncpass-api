@@ -8,6 +8,7 @@ Hasta ahora el esquema lo creaba Hibernate con `ddl-auto: update`. Desde la Fase
 | `V1__baseline_usuarios.sql` | `usuarios` y `usuario_roles`: lo que ya existía, descrito tal como Hibernate lo espera |
 | `V2__esquema_syncpass.sql` | `proyectos`, `eventos`, `asistentes`, `asistencias`, `encuestas` |
 | `V3__asistentes_uuid.sql` | `asistentes.uuid` (nullable, único): clave de idempotencia del alta de asistentes en terreno desde el móvil |
+| `V4__eventos_quorum_minimo.sql` | `eventos.quorum_minimo` (opcional, `>= 1`): mínimo de asistentes para dar por cumplido el quórum |
 | `db/demo/R__datos_demo.sql` | Datos ficticios. **Solo con el perfil `demo`**, nunca por defecto |
 
 ## Estado de la verificación
