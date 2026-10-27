@@ -2,9 +2,12 @@ package com.duoc.cursos.sync.controller;
 
 import com.duoc.cursos.common.dto.ApiResponse;
 import com.duoc.cursos.sync.dto.CatalogoResponse;
+import com.duoc.cursos.sync.dto.LoteAsistentesResponse;
 import com.duoc.cursos.sync.dto.LoteSyncResponse;
 import com.duoc.cursos.sync.dto.SincronizarAsistenciasRequest;
+import com.duoc.cursos.sync.dto.SincronizarAsistentesRequest;
 import com.duoc.cursos.sync.dto.SincronizarEncuestasRequest;
+import com.duoc.cursos.sync.service.AsistenteSyncService;
 import com.duoc.cursos.sync.service.SyncService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -31,15 +34,24 @@ import java.time.Instant;
 public class SyncController {
 
     private final SyncService syncService;
+    private final AsistenteSyncService asistenteSyncService;
 
-    public SyncController(SyncService syncService) {
+    public SyncController(SyncService syncService, AsistenteSyncService asistenteSyncService) {
         this.syncService = syncService;
+        this.asistenteSyncService = asistenteSyncService;
     }
 
     @GetMapping("/catalogo")
     public ResponseEntity<ApiResponse<CatalogoResponse>> catalogo(
             @RequestParam(value = "desde", required = false) Instant desde) {
         return ResponseEntity.ok(ApiResponse.ok(syncService.catalogo(desde), "Catálogo sincronizado"));
+    }
+
+    /** Alta de asistentes llegados sin inscripción previa (caso §3.1). Debe subirse antes que sus asistencias. */
+    @PostMapping("/asistentes")
+    public ResponseEntity<ApiResponse<LoteAsistentesResponse>> asistentes(
+            @Valid @RequestBody SincronizarAsistentesRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(asistenteSyncService.sincronizar(req.getRegistros()), "Lote procesado"));
     }
 
     @PostMapping("/asistencias")

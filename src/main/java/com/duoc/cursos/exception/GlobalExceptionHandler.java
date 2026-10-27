@@ -196,6 +196,12 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("NOT_FOUND", ex.getMessage(), HttpStatus.NOT_FOUND.value()));
     }
 
+    @ExceptionHandler(ConflictoException.class)
+    public ResponseEntity<ErrorResponse> handleConflicto(ConflictoException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("CONFLICT", ex.getMessage(), HttpStatus.CONFLICT.value()));
+    }
+
     // --- Validación de DTOs y JSON ---
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

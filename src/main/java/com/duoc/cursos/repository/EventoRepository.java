@@ -18,4 +18,6 @@ public interface EventoRepository extends JpaRepository<Evento, Long> {
     @Override
     @EntityGraph(attributePaths = "proyecto")
     List<Evento> findAll();
+
+    boolean existsByProyectoId(Long proyectoId);
 }

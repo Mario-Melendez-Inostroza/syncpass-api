@@ -7,6 +7,7 @@ Hasta ahora el esquema lo creaba Hibernate con `ddl-auto: update`. Desde la Fase
 |---|---|
 | `V1__baseline_usuarios.sql` | `usuarios` y `usuario_roles`: lo que ya existía, descrito tal como Hibernate lo espera |
 | `V2__esquema_syncpass.sql` | `proyectos`, `eventos`, `asistentes`, `asistencias`, `encuestas` |
+| `V3__asistentes_uuid.sql` | `asistentes.uuid` (nullable, único): clave de idempotencia del alta de asistentes en terreno desde el móvil |
 | `db/demo/R__datos_demo.sql` | Datos ficticios. **Solo con el perfil `demo`**, nunca por defecto |
 
 ## Estado de la verificación
@@ -70,7 +71,7 @@ Configuración (`application.yml`): `baseline-on-migrate: true`, `baseline-versi
 | Estado de la base | Resultado |
 |---|---|
 | Vacía, sin historial | **No** baselinea. Ejecuta `V1` y `V2` |
-| Con `usuarios` ya creada, sin historial (la situación actual de Supabase) | Baselinea en `V1` (no la ejecuta) y ejecuta solo `V2` |
+| Con `usuarios` ya creada, sin historial | Baselinea en `V1` (no la ejecuta) y ejecuta `V2` y `V3` |
 | Con historial de Flyway | Flujo normal: ejecuta lo pendiente |
 | Con tablas, sin historial y **sin** `baseline-on-migrate` | Se niega a actuar (falla), no toca nada |
 
@@ -134,3 +135,9 @@ alter table encuestas      enable row level security;
 **No se incluyó como migración a propósito**: depende de que el usuario de `DATABASE_USER` sea propietario
 de las tablas (o tenga `BYPASSRLS`), y eso no se pudo verificar desde aquí. Si no lo fuera, activar RLS sin
 políticas bloquearía **todo** el acceso del backend. Comprobarlo primero en Supabase y aplicarlo a mano.
+
+## V3 en la base de producción (Supabase)
+
+Supabase ya está en V2 (con historial de Flyway). Al arrancar la versión nueva del servicio, Flyway aplica **solo V3**
+(`alter table asistentes add column uuid` + restricción única): no toca datos, y los asistentes existentes quedan con
+`uuid` NULL. No requiere pasos manuales. En el log debe aparecer `Successfully applied 1 migration`.

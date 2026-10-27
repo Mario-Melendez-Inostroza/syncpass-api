@@ -48,6 +48,11 @@ public class SecurityConfig {
                 // Quórum en vivo: vista de supervisión del Docente / Coordinador(a) de Proyecto (caso §3.1). Requiere el grupo
                 // COORDINADOR en el User Pool; si no existe, solo este endpoint responde 403.
                 .requestMatchers(HttpMethod.GET, "/api/eventos/*/resumen").hasRole("COORDINADOR")
+                // Gestión del catálogo y reporte de asistencia: solo el Docente / Coordinador(a) (caso §3.1, §2.4).
+                .requestMatchers(HttpMethod.GET, "/api/eventos/*/asistencias").hasRole("COORDINADOR")
+                .requestMatchers(HttpMethod.POST, "/api/proyectos", "/api/eventos").hasRole("COORDINADOR")
+                .requestMatchers(HttpMethod.PUT, "/api/proyectos/*", "/api/eventos/*").hasRole("COORDINADOR")
+                .requestMatchers(HttpMethod.DELETE, "/api/proyectos/*", "/api/eventos/*").hasRole("COORDINADOR")
                 // /api/sync/** y /api/notificar: basta con estar autenticado.
                 .anyRequest().authenticated()
             )

@@ -29,6 +29,13 @@ public class Asistente {
     @Column(name = "codigo", nullable = false, unique = true, length = 40)
     private String codigo;
 
+    /**
+     * Identificador generado por el teléfono para un asistente dado de alta en terreno. NULL en los que carga
+     * el servidor. Es la clave de idempotencia del alta (V3).
+     */
+    @Column(name = "uuid", length = 36, unique = true)
+    private String uuid;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo", nullable = false, length = 20)
     private TipoParticipante tipo;
