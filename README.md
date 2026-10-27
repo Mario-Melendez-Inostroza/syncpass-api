@@ -166,3 +166,13 @@ Los secretos viven solo en `/etc/syncpass/syncpass.env` (root, `chmod 600`) dent
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) y [`docs/CONGNITO_INTEGRATION.md`](docs/CONGNITO_INTEGRATION.md) (base del
 profesor, autenticación contra Cognito) · [`docs/ENVS.md`](docs/ENVS.md) · [`docs/MIGRACIONES.md`](docs/MIGRACIONES.md) ·
 [`deploy/README.md`](deploy/README.md).
+
+## Equipo
+
+Proyecto del curso DSY1105 · Desarrollo de Aplicaciones Móviles · Duoc UC.
+
+| Integrante | GitHub | Aporte en este repositorio |
+|---|---|---|
+| Mario Meléndez | [Mario-Melendez-Inostroza](https://github.com/Mario-Melendez-Inostroza) | Desarrollo e integración del sistema |
+| _(nombre completo)_ | [bx1423](https://github.com/bx1423) | _(completar: qué aportó o revisó)_ |
+| _(nombre completo)_ | [Monnacohu](https://github.com/Monnacohu) | _(completar: qué aportó o revisó)_ |
