@@ -62,7 +62,7 @@ class SyncSeguridadTest {
 
     @BeforeEach
     void tokensFicticios() {
-        when(jwtDecoder.decode("tok-usuario")).thenReturn(TestJwts.accessToken("sub-usuario", "USER"));
+        when(jwtDecoder.decode("tok-usuario")).thenReturn(TestJwts.accessToken("sub-usuario", "MONITOR"));
         when(jwtDecoder.decode("tok-sin-grupos")).thenReturn(TestJwts.accessToken("sub-sin-grupos"));
         when(jwtDecoder.decode("tok-coordinador")).thenReturn(TestJwts.accessToken("sub-coord", "COORDINADOR"));
         when(jwtDecoder.decode("tok-coordinador-minusculas")).thenReturn(TestJwts.accessToken("sub-coord2", "coordinador"));
@@ -156,7 +156,7 @@ class SyncSeguridadTest {
     // ------------------------------------------------------------------ 403: rol de coordinación
 
     @Test
-    @DisplayName("Resumen: token válido pero sin COORDINADOR/ADMINISTRADOR -> 403")
+    @DisplayName("Resumen: token válido pero sin el grupo COORDINADOR -> 403 (un MONITOR no ve el quórum)")
     void resumen_sinRol_403() throws Exception {
         llamar(get("/api/eventos/1/resumen"), "tok-usuario").andExpect(status().isForbidden());
         llamar(get("/api/eventos/1/resumen"), "tok-sin-grupos").andExpect(status().isForbidden());
@@ -165,13 +165,20 @@ class SyncSeguridadTest {
     }
 
     @Test
-    @DisplayName("Resumen: COORDINADOR y ADMINISTRADOR -> 200 (también 'coordinador' en minúsculas)")
+    @DisplayName("Resumen: COORDINADOR -> 200 (también 'coordinador' en minúsculas)")
     void resumen_conRol_200() throws Exception {
         llamar(get("/api/eventos/1/resumen"), "tok-coordinador").andExpect(status().isOk());
         llamar(get("/api/eventos/1/resumen"), "tok-coordinador-minusculas").andExpect(status().isOk());
-        llamar(get("/api/eventos/1/resumen"), "tok-admin").andExpect(status().isOk());
 
-        verify(syncService, times(3)).resumen(1L);
+        verify(syncService, times(2)).resumen(1L);
+    }
+
+    @Test
+    @DisplayName("Resumen: ADMINISTRADOR no es un rol del caso y no da acceso -> 403")
+    void resumen_administradorNoDaAcceso_403() throws Exception {
+        llamar(get("/api/eventos/1/resumen"), "tok-admin").andExpect(status().isForbidden());
+
+        verifyNoInteractions(syncService);
     }
 
     // ------------------------------------------------------------------ notificaciones
@@ -216,7 +223,7 @@ class SyncSeguridadTest {
         u.setId("sub-nuevo");
         u.setEmail("usuario.prueba@example.com");
         u.setNombre("Usuario Prueba");
-        u.setRoles(Set.of("USER"));
+        u.setRoles(Set.of("MONITOR"));
         when(authService.registrar(anyString(), anyString(), anyString())).thenReturn(u);
 
         llamar(postJson("/api/auth/registro",

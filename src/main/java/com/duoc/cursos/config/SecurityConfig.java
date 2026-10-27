@@ -45,9 +45,9 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/auth/**", "/api/health").permitAll()
-                // Quórum en vivo: vista de supervisión del docente. Requiere que exista el grupo
+                // Quórum en vivo: vista de supervisión del Docente / Coordinador(a) de Proyecto (caso §3.1). Requiere el grupo
                 // COORDINADOR en el User Pool; si no existe, solo este endpoint responde 403.
-                .requestMatchers(HttpMethod.GET, "/api/eventos/*/resumen").hasAnyRole("COORDINADOR", "ADMINISTRADOR")
+                .requestMatchers(HttpMethod.GET, "/api/eventos/*/resumen").hasRole("COORDINADOR")
                 // /api/sync/** y /api/notificar: basta con estar autenticado.
                 .anyRequest().authenticated()
             )

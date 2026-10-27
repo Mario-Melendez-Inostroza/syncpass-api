@@ -63,7 +63,7 @@ class SyncControllerTest {
         a1 = asistentes.save(SyncFixtures.asistente("ASI-0001"));
         a2 = asistentes.save(SyncFixtures.asistente("ASI-0002"));
 
-        when(jwtDecoder.decode(TOKEN)).thenReturn(TestJwts.accessToken("sub-monitor", "USER"));
+        when(jwtDecoder.decode(TOKEN)).thenReturn(TestJwts.accessToken("sub-monitor", "MONITOR"));
         when(jwtDecoder.decode("tok-coord")).thenReturn(TestJwts.accessToken("sub-coord", "COORDINADOR"));
     }
 

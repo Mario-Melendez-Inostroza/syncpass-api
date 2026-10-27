@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Quórum en vivo para la supervisión docente (caso §2.4 y §4.1). El acceso por rol (COORDINADOR o
- * ADMINISTRADOR) se declara en SecurityConfig.
+ * Quórum en vivo para la supervisión docente (caso §2.4 y §4.1). El acceso por rol (COORDINADOR)
+ * se declara en SecurityConfig.
  */
 @RestController
 @RequestMapping("/api/eventos")

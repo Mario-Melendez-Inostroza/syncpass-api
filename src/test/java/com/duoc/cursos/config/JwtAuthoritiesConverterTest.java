@@ -56,8 +56,8 @@ class JwtAuthoritiesConverterTest {
     @Test
     @DisplayName("Varios grupos -> varias authorities")
     void variosGrupos() {
-        assertEquals(Set.of("ROLE_COORDINADOR", "ROLE_USER"),
-                autoridades(jwtConGrupos(List.of("COORDINADOR", "USER"))));
+        assertEquals(Set.of("ROLE_COORDINADOR", "ROLE_MONITOR"),
+                autoridades(jwtConGrupos(List.of("COORDINADOR", "MONITOR"))));
     }
 
     @Test
@@ -81,13 +81,13 @@ class JwtAuthoritiesConverterTest {
     @Test
     @DisplayName("Entradas vacías o en blanco se ignoran")
     void ignoraEntradasEnBlanco() {
-        assertEquals(Set.of("ROLE_USER"), autoridades(jwtConGrupos(List.of("", "  ", "USER"))));
+        assertEquals(Set.of("ROLE_MONITOR"), autoridades(jwtConGrupos(List.of("", "  ", "MONITOR"))));
     }
 
     @Test
     @DisplayName("El principal sigue siendo el sub del token")
     void principalEsElSub() {
-        JwtAuthenticationToken token = (JwtAuthenticationToken) converter.convert(jwtConGrupos(List.of("USER")));
+        JwtAuthenticationToken token = (JwtAuthenticationToken) converter.convert(jwtConGrupos(List.of("MONITOR")));
         assertEquals("sub-de-prueba", token.getName());
     }
 }

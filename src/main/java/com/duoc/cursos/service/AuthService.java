@@ -22,10 +22,11 @@ public class AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     /**
-     * Rol que el servidor asigna a todo usuario registrado. Debe existir como grupo en el User Pool.
+     * Rol que el servidor asigna a todo usuario registrado: el Estudiante Voluntario / Monitor del caso
+     * (§3.1). Debe existir como grupo en el User Pool.
      * El cliente no puede elegirlo.
      */
-    public static final String ROL_POR_DEFECTO = "USER";
+    public static final String ROL_POR_DEFECTO = "MONITOR";
 
     private final CognitoIdentityProviderClient cognitoClient;
     private final UsuarioRepository usuarioRepository;

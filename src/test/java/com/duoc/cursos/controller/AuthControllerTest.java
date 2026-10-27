@@ -66,7 +66,7 @@ class AuthControllerTest {
         u.setId("sub-ficticio-123");
         u.setEmail("usuario.prueba@example.com");
         u.setNombre("Usuario Prueba");
-        u.setRoles(Set.of("USER"));
+        u.setRoles(Set.of("MONITOR"));
         return u;
     }
 
@@ -86,7 +86,7 @@ class AuthControllerTest {
                 + "\"nombre\":\"Usuario Prueba\",\"roles\":[\"ADMIN\"]}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.roles.length()").value(1))
-                .andExpect(jsonPath("$.data.roles[0]").value("USER"));
+                .andExpect(jsonPath("$.data.roles[0]").value("MONITOR"));
 
         // La firma del servicio ya no admite roles: solo recibe email, password y nombre.
         verify(authService).registrar("usuario.prueba@example.com", "Password-de-prueba-1!", "Usuario Prueba");
@@ -102,7 +102,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.id").value("sub-ficticio-123"))
                 .andExpect(jsonPath("$.data.email").value("usuario.prueba@example.com"))
                 .andExpect(jsonPath("$.data.nombre").value("Usuario Prueba"))
-                .andExpect(jsonPath("$.data.roles[0]").value("USER"));
+                .andExpect(jsonPath("$.data.roles[0]").value("MONITOR"));
     }
 
     // ------------------------------------------------------------------ registro: entrada inválida

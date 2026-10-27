@@ -80,7 +80,7 @@ class AuthServiceTest {
 
         ArgumentCaptor<AdminAddUserToGroupRequest> grupo = ArgumentCaptor.forClass(AdminAddUserToGroupRequest.class);
         verify(cognito).adminAddUserToGroup(grupo.capture());
-        assertEquals("USER", grupo.getValue().groupName());
+        assertEquals("MONITOR", grupo.getValue().groupName());
         assertEquals(EMAIL, grupo.getValue().username());
         assertEquals("pool-de-prueba", grupo.getValue().userPoolId());
 
@@ -89,8 +89,8 @@ class AuthServiceTest {
         assertEquals(SUB, guardado.getValue().getId());
         assertEquals(EMAIL, guardado.getValue().getEmail());
         assertEquals(NOMBRE, guardado.getValue().getNombre());
-        assertEquals(Set.of("USER"), guardado.getValue().getRoles());
-        assertEquals(Set.of("USER"), resultado.getRoles());
+        assertEquals(Set.of("MONITOR"), guardado.getValue().getRoles());
+        assertEquals(Set.of("MONITOR"), resultado.getRoles());
     }
 
     @Test
