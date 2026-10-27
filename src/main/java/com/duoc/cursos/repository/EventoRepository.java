@@ -20,4 +20,6 @@ public interface EventoRepository extends JpaRepository<Evento, Long> {
     List<Evento> findAll();
 
     boolean existsByProyectoId(Long proyectoId);
+
+    List<Evento> findByProyectoIdOrderByFechaHoraProgramadaAsc(Long proyectoId);
 }

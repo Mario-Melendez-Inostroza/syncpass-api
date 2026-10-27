@@ -74,15 +74,15 @@ class MigracionesFlywayTest {
     // ------------------------------------------------------------------ base nueva
 
     @Test
-    @DisplayName("Base vacía: Flyway NO baselinea y ejecuta V1, V2 y V3 desde cero")
+    @DisplayName("Base vacía: Flyway NO baselinea y ejecuta V1 a V4 desde cero")
     void baseVacia_ejecutaTodo() throws Exception {
         String url = nuevaBase();
         Flyway flyway = flyway(url, true, MIGRACIONES);
 
         MigrateResult resultado = flyway.migrate();
 
-        assertEquals(3, resultado.migrationsExecuted);
-        assertEquals(List.of("1:SQL", "2:SQL", "3:SQL"), versionesAplicadas(flyway),
+        assertEquals(4, resultado.migrationsExecuted);
+        assertEquals(List.of("1:SQL", "2:SQL", "3:SQL", "4:SQL"), versionesAplicadas(flyway),
                 "en una base vacía no debe aparecer ninguna fila BASELINE");
         for (String tabla : new String[]{"usuarios", "usuario_roles", "proyectos", "eventos", "asistentes",
                 "asistencias", "encuestas"}) {
@@ -102,7 +102,7 @@ class MigracionesFlywayTest {
     // ------------------------------------------------------------------ base existente (Supabase)
 
     @Test
-    @DisplayName("Base con tablas de Hibernate y SIN historial: baselinea en V1 y ejecuta V2 y V3, no V1")
+    @DisplayName("Base con tablas de Hibernate y SIN historial: baselinea en V1 y ejecuta V2, V3 y V4, no V1")
     void baseExistenteSinHistorial_baselineaYSaltaV1() throws Exception {
         String url = nuevaBase();
         // Simula la base de Supabase: usuarios y usuario_roles ya existen (las creó Hibernate) y hay un usuario.
@@ -118,9 +118,9 @@ class MigracionesFlywayTest {
         MigrateResult resultado = flyway.migrate();
 
         // Si V1 se hubiera ejecutado, fallaría con "table usuarios already exists".
-        assertEquals(2, resultado.migrationsExecuted, "deben ejecutarse V2 y V3, pero no V1");
+        assertEquals(3, resultado.migrationsExecuted, "deben ejecutarse V2, V3 y V4, pero no V1");
         List<String> aplicadas = versionesAplicadas(flyway);
-        assertEquals(List.of("1:BASELINE", "2:SQL", "3:SQL"), aplicadas);
+        assertEquals(List.of("1:BASELINE", "2:SQL", "3:SQL", "4:SQL"), aplicadas);
         assertTrue(existeTabla(url, "asistencias"));
         assertEquals(1, contar(url, "usuarios"), "los datos existentes no se tocan");
     }
@@ -181,6 +181,31 @@ class MigracionesFlywayTest {
                 assertTrue(uk.next(), "falta la restricción uk_asistentes_uuid");
                 assertEquals("UNIQUE", uk.getString(1));
             }
+        }
+    }
+
+    // ------------------------------------------------------------------ V4: quórum mínimo
+
+    @Test
+    @DisplayName("V4 sobre una base que ya estaba en V3 conserva los eventos y deja quorum_minimo opcional")
+    void v4_sobreBaseEnV3_conservaEventos() throws Exception {
+        String url = nuevaBase();
+        Flyway hastaV3 = Flyway.configure().dataSource(url, "sa", "").locations(MIGRACIONES, DEMO)
+                .target("3").baselineOnMigrate(true).baselineVersion("1").load();
+        hastaV3.migrate();
+        assertEquals(2, contar(url, "eventos"));
+
+        MigrateResult resultado = flyway(url, true, MIGRACIONES, DEMO).migrate();
+
+        assertTrue(resultado.migrationsExecuted >= 1);
+        assertEquals(2, contar(url, "eventos"), "los eventos existentes no se tocan");
+        assertEquals(2, contar(url, "eventos where quorum_minimo is null"), "los eventos existentes no tienen mínimo");
+        try (Connection c = DriverManager.getConnection(url, "sa", "");
+             Statement s = c.createStatement();
+             ResultSet col = s.executeQuery("select is_nullable from information_schema.columns "
+                     + "where table_name = 'eventos' and column_name = 'quorum_minimo'")) {
+            assertTrue(col.next(), "falta la columna quorum_minimo");
+            assertEquals("YES", col.getString(1), "quorum_minimo debe ser opcional");
         }
     }
 

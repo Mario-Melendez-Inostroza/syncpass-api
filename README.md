@@ -54,8 +54,11 @@ Todas las respuestas correctas vienen en `{success, data, message, timestamp}`; 
 | `POST /api/sync/asistentes` | autenticado | Alta de asistentes llegados **sin inscripción previa** (por lotes, idempotente) |
 | `POST /api/sync/asistencias` | autenticado | Marcaciones de asistencia (por lotes, idempotente) |
 | `POST /api/sync/encuestas` | autenticado | Encuestas de satisfacción y utilidad (por lotes, idempotente) |
-| `GET /api/eventos/{id}/resumen` | COORDINADOR | Quórum: marcados, dentro/fuera del radio, encuestas y promedios |
+| `GET /api/eventos/{id}/resumen` | COORDINADOR | Quórum: marcados, mínimo y si está cumplido, dentro/fuera del radio, encuestas y promedios |
 | `GET /api/eventos/{id}/asistencias` | COORDINADOR | Una fila por asistencia con su encuesta (base del CSV) |
+| `GET /api/eventos/{id}/comentarios` | COORDINADOR | Comentarios de las encuestas del evento, sin nada que identifique a quien los escribió |
+| `GET /api/informes[?proyectoId=]` | COORDINADOR | Informe de impacto consolidado (por proyecto o general): quórum, tasa de respuesta, promedios ponderados, comentarios |
+| `GET/POST /api/asistentes` · `PUT/DELETE /api/asistentes/{id}` | COORDINADOR | Lista de asistentes y alta (uno o hasta 200) con código generado por el servidor; edición de tipo e inscripción; baja solo si no tiene asistencias |
 | `POST/PUT/DELETE /api/proyectos[/{id}]` | COORDINADOR | Gestión de proyectos |
 | `POST/PUT/DELETE /api/eventos[/{id}]` | COORDINADOR | Gestión de eventos |
 | `POST /api/notificar` | autenticado | Relé de notificaciones (ntfy) |
@@ -83,6 +86,7 @@ sobre el esquema (`ddl-auto: none`):
 | `V1__baseline_usuarios.sql` | `usuarios` y `usuario_roles` (lo que ya existía) |
 | `V2__esquema_syncpass.sql` | `proyectos`, `eventos`, `asistentes`, `asistencias`, `encuestas` |
 | `V3__asistentes_uuid.sql` | `asistentes.uuid` (opcional, único): clave de idempotencia del alta en terreno |
+| `V4__eventos_quorum_minimo.sql` | `eventos.quorum_minimo` (opcional): mínimo de asistentes para dar por cumplido el quórum |
 | `db/demo/R__datos_demo.sql` | Catálogo **ficticio**; solo con el perfil `demo` |
 
 Una base que ya tiene tablas y no tiene historial se **baselinea** en V1 y ejecuta solo lo posterior. Detalle y pasos
@@ -113,7 +117,7 @@ Variables (solo los nombres; los valores van en tu `.env`, que **no se sube a Gi
 ## Pruebas
 
 ```
-./gradlew.bat clean build      # 164 pruebas, 0 fallos
+./gradlew.bat clean build      # 190 pruebas, 0 fallos
 ```
 
 Sin Docker ni red: H2 en modo PostgreSQL y un `JwtDecoder` simulado. Cubren el contrato JSON de cada endpoint, la

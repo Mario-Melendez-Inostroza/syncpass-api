@@ -4,6 +4,7 @@ import com.duoc.cursos.common.dto.ApiResponse;
 import com.duoc.cursos.evento.dto.EventoRequest;
 import com.duoc.cursos.evento.service.EventoService;
 import com.duoc.cursos.sync.dto.AsistenciaFilaDto;
+import com.duoc.cursos.sync.dto.ComentarioDto;
 import com.duoc.cursos.sync.dto.EventoDto;
 import com.duoc.cursos.sync.dto.ResumenEventoResponse;
 import com.duoc.cursos.sync.service.SyncService;
@@ -46,6 +47,11 @@ public class EventoController {
     @GetMapping("/{id}/asistencias")
     public ResponseEntity<ApiResponse<List<AsistenciaFilaDto>>> asistencias(@PathVariable("id") Long id) {
         return ResponseEntity.ok(ApiResponse.ok(eventoService.asistencias(id), "Asistencias del evento"));
+    }
+
+    @GetMapping("/{id}/comentarios")
+    public ResponseEntity<ApiResponse<List<ComentarioDto>>> comentarios(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(eventoService.comentarios(id), "Comentarios del evento"));
     }
 
     @PostMapping

@@ -29,6 +29,10 @@ public class EventoRequest {
     @Min(1)
     private Integer cuposMaximos;
 
+    /** Mínimo de asistentes para dar por cumplido el quórum. Opcional; no puede superar los cupos máximos. */
+    @Min(1)
+    private Integer quorumMinimo;
+
     @Size(max = 200)
     private String recinto;
 
@@ -49,5 +53,12 @@ public class EventoRequest {
     @AssertTrue(message = "Indica latitud y longitud juntas, o ninguna")
     public boolean isCoordenadasCoherentes() {
         return (latitud == null) == (longitud == null);
+    }
+
+    /** Un quórum mínimo mayor que los cupos nunca se podría cumplir. */
+    @JsonIgnore
+    @AssertTrue(message = "El quórum mínimo no puede superar los cupos máximos")
+    public boolean isQuorumCoherente() {
+        return quorumMinimo == null || cuposMaximos == null || quorumMinimo <= cuposMaximos;
     }
 }

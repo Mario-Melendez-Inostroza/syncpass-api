@@ -10,6 +10,7 @@ public record EventoDto(
         String nombre,
         Instant fechaHoraProgramada,
         Integer cuposMaximos,
+        Integer quorumMinimo,
         String recinto,
         Double latitud,
         Double longitud,
@@ -18,7 +19,7 @@ public record EventoDto(
 
     public static EventoDto de(Evento e) {
         return new EventoDto(e.getId(), e.getProyecto().getId(), e.getNombre(), e.getFechaHoraProgramada(),
-                e.getCuposMaximos(), e.getRecinto(), e.getLatitud(), e.getLongitud(), e.getRadioMetros(),
+                e.getCuposMaximos(), e.getQuorumMinimo(), e.getRecinto(), e.getLatitud(), e.getLongitud(), e.getRadioMetros(),
                 e.getActualizadoEn());
     }
 }

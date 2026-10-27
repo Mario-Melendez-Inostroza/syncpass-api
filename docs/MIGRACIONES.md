@@ -141,3 +141,9 @@ políticas bloquearía **todo** el acceso del backend. Comprobarlo primero en Su
 Supabase ya está en V2 (con historial de Flyway). Al arrancar la versión nueva del servicio, Flyway aplica **solo V3**
 (`alter table asistentes add column uuid` + restricción única): no toca datos, y los asistentes existentes quedan con
 `uuid` NULL. No requiere pasos manuales. En el log debe aparecer `Successfully applied 1 migration`.
+
+## V4 en la base de producción (Supabase)
+
+Supabase ya está en V3. Al arrancar la versión nueva, Flyway aplica **solo V4** (`alter table eventos add column
+quorum_minimo` + una restricción `>= 1`): no toca datos, y los eventos existentes quedan sin mínimo (`NULL`). En el log
+debe aparecer `Successfully applied 1 migration`.

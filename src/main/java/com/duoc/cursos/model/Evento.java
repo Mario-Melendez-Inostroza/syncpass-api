@@ -33,6 +33,10 @@ public class Evento {
     @Column(name = "cupos_maximos")
     private Integer cuposMaximos;
 
+    /** Cuántas personas mínimo deben asistir para dar por cumplido el quórum. Nulo si el evento no define uno. */
+    @Column(name = "quorum_minimo")
+    private Integer quorumMinimo;
+
     @Column(name = "recinto", length = 200)
     private String recinto;
 

@@ -6,10 +6,13 @@ import com.duoc.cursos.exception.RecursoNoEncontradoException;
 import com.duoc.cursos.model.Evento;
 import com.duoc.cursos.model.Proyecto;
 import com.duoc.cursos.repository.AsistenciaRepository;
+import com.duoc.cursos.repository.EncuestaRepository;
 import com.duoc.cursos.repository.EventoRepository;
 import com.duoc.cursos.repository.ProyectoRepository;
 import com.duoc.cursos.sync.dto.AsistenciaFilaDto;
+import com.duoc.cursos.sync.dto.ComentarioDto;
 import com.duoc.cursos.sync.dto.EventoDto;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,16 +22,22 @@ import java.util.List;
 @Service
 public class EventoService {
 
+    /** Tope de comentarios que devuelve un evento: los más recientes. */
+    static final int MAX_COMENTARIOS = 200;
+
     private final EventoRepository eventoRepository;
     private final ProyectoRepository proyectoRepository;
     private final AsistenciaRepository asistenciaRepository;
+    private final EncuestaRepository encuestaRepository;
 
     public EventoService(EventoRepository eventoRepository,
                          ProyectoRepository proyectoRepository,
-                         AsistenciaRepository asistenciaRepository) {
+                         AsistenciaRepository asistenciaRepository,
+                         EncuestaRepository encuestaRepository) {
         this.eventoRepository = eventoRepository;
         this.proyectoRepository = proyectoRepository;
         this.asistenciaRepository = asistenciaRepository;
+        this.encuestaRepository = encuestaRepository;
     }
 
     @Transactional
@@ -64,6 +73,13 @@ public class EventoService {
         return asistenciaRepository.filasPorEvento(eventoId);
     }
 
+    /** Los comentarios de las encuestas del evento (los más recientes primero), sin nada que identifique al asistente. */
+    @Transactional(readOnly = true)
+    public List<ComentarioDto> comentarios(Long eventoId) {
+        buscar(eventoId);
+        return encuestaRepository.comentariosPorEvento(eventoId, Pageable.ofSize(MAX_COMENTARIOS));
+    }
+
     private Evento buscar(Long id) {
         return eventoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("El evento no existe"));
@@ -76,6 +92,7 @@ public class EventoService {
         e.setNombre(req.getNombre().trim());
         e.setFechaHoraProgramada(req.getFechaHoraProgramada());
         e.setCuposMaximos(req.getCuposMaximos());
+        e.setQuorumMinimo(req.getQuorumMinimo());
         e.setRecinto(req.getRecinto());
         e.setLatitud(req.getLatitud());
         e.setLongitud(req.getLongitud());

@@ -25,6 +25,18 @@ public interface AsistenciaRepository extends JpaRepository<Asistencia, Long> {
 
     boolean existsByEventoId(Long eventoId);
 
+    boolean existsByAsistenteId(Long asistenteId);
+
+    long countByAsistenteId(Long asistenteId);
+
+    /** Personas distintas marcadas en cualquier evento. */
+    @Query("select count(distinct a.asistente.id) from Asistencia a")
+    long asistentesUnicosGeneral();
+
+    /** Personas distintas marcadas en los eventos de un proyecto. */
+    @Query("select count(distinct a.asistente.id) from Asistencia a where a.evento.proyecto.id = :proyectoId")
+    long asistentesUnicosDeProyecto(@Param("proyectoId") Long proyectoId);
+
     long countByEventoIdAndEstadoValidacion(Long eventoId, EstadoValidacion estado);
 
     @Query("select min(a.marcadoEn) from Asistencia a where a.evento.id = :eventoId")

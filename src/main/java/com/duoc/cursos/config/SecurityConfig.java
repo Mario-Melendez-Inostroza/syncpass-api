@@ -49,7 +49,11 @@ public class SecurityConfig {
                 // COORDINADOR en el User Pool; si no existe, solo este endpoint responde 403.
                 .requestMatchers(HttpMethod.GET, "/api/eventos/*/resumen").hasRole("COORDINADOR")
                 // Gestión del catálogo y reporte de asistencia: solo el Docente / Coordinador(a) (caso §3.1, §2.4).
-                .requestMatchers(HttpMethod.GET, "/api/eventos/*/asistencias").hasRole("COORDINADOR")
+                .requestMatchers(HttpMethod.GET, "/api/eventos/*/asistencias", "/api/eventos/*/comentarios").hasRole("COORDINADOR")
+                .requestMatchers(HttpMethod.GET, "/api/informes", "/api/asistentes").hasRole("COORDINADOR")
+                .requestMatchers(HttpMethod.POST, "/api/asistentes").hasRole("COORDINADOR")
+                .requestMatchers(HttpMethod.PUT, "/api/asistentes/*").hasRole("COORDINADOR")
+                .requestMatchers(HttpMethod.DELETE, "/api/asistentes/*").hasRole("COORDINADOR")
                 .requestMatchers(HttpMethod.POST, "/api/proyectos", "/api/eventos").hasRole("COORDINADOR")
                 .requestMatchers(HttpMethod.PUT, "/api/proyectos/*", "/api/eventos/*").hasRole("COORDINADOR")
                 .requestMatchers(HttpMethod.DELETE, "/api/proyectos/*", "/api/eventos/*").hasRole("COORDINADOR")

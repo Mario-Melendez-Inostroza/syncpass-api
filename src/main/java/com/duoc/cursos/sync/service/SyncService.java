@@ -282,11 +282,14 @@ public class SyncService {
         Evento evento = eventoRepository.findById(eventoId)
                 .orElseThrow(() -> new RecursoNoEncontradoException("El evento no existe"));
 
+        long marcados = asistenciaRepository.countByEventoId(eventoId);
         return new ResumenEventoResponse(
                 evento.getId(),
                 evento.getNombre(),
                 evento.getCuposMaximos(),
-                asistenciaRepository.countByEventoId(eventoId),
+                evento.getQuorumMinimo(),
+                ResumenEventoResponse.cumple(evento.getQuorumMinimo(), marcados),
+                marcados,
                 asistenciaRepository.countByEventoIdAndEstadoValidacion(eventoId, EstadoValidacion.VALIDA),
                 asistenciaRepository.countByEventoIdAndEstadoValidacion(eventoId, EstadoValidacion.FUERA_DE_RADIO),
                 asistenciaRepository.countByEventoIdAndEstadoValidacion(eventoId, EstadoValidacion.SIN_UBICACION),
