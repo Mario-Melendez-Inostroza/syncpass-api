@@ -1,0 +1,22 @@
+# Servicio systemd de SyncPass (backend). Se instala en /etc/systemd/system/syncpass.service
+# con deploy/instalar-ec2.sh. Los secretos NO van aquí: están en /etc/syncpass/syncpass.env (chmod 600).
+[Unit]
+Description=SyncPass API (Spring Boot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=syncpass
+Group=syncpass
+WorkingDirectory=/opt/syncpass
+EnvironmentFile=/etc/syncpass/syncpass.env
+ExecStart=/usr/bin/java -Xms128m -Xmx512m -jar /opt/syncpass/syncpass.jar --server.port=8080
+Restart=on-failure
+RestartSec=10
+SuccessExitStatus=143
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
