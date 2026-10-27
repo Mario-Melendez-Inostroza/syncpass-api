@@ -2,6 +2,9 @@ package com.duoc.cursos.controller;
 
 import com.duoc.cursos.common.dto.ApiResponse;
 import com.duoc.cursos.model.Usuario;
+import com.duoc.cursos.inscripcion.dto.MiPerfilDto;
+import com.duoc.cursos.inscripcion.service.MiCuentaService;
+import com.duoc.cursos.model.enums.TipoParticipante;
 import com.duoc.cursos.service.AuthService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -23,9 +26,11 @@ import java.util.Set;
 public class AuthController {
 
     private final AuthService authService;
+    private final MiCuentaService miCuentaService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, MiCuentaService miCuentaService) {
         this.authService = authService;
+        this.miCuentaService = miCuentaService;
     }
 
     @PostMapping("/registro")
@@ -33,6 +38,16 @@ public class AuthController {
         // El rol lo asigna el servidor (AuthService.ROL_POR_DEFECTO); req.getRoles() se ignora a propósito.
         Usuario usuario = authService.registrar(req.getEmail(), req.getPassword(), req.getNombre());
         return ResponseEntity.ok(ApiResponse.ok(usuario, "Usuario registrado exitosamente"));
+    }
+
+    /**
+     * Registro del Asistente / Beneficiario Comunitario (caso §3.1). Crea una cuenta del grupo ASISTENTE y su código
+     * sintético; no guarda nombre ni correo en la base. El rol lo fija el servidor.
+     */
+    @PostMapping("/registro-asistente")
+    public ResponseEntity<ApiResponse<MiPerfilDto>> registrarAsistente(@Valid @RequestBody RegistroAsistenteRequest req) {
+        MiPerfilDto perfil = miCuentaService.registrar(req.getEmail(), req.getPassword(), req.getTipo());
+        return ResponseEntity.ok(ApiResponse.ok(perfil, "Cuenta de asistente creada"));
     }
 
     @PostMapping("/login")
@@ -111,6 +126,18 @@ public class AuthController {
          * IGNORADO: el servidor asigna el rol; el cliente no puede solicitar privilegios.
          */
         private Set<String> roles;
+    }
+
+    @Data
+    public static class RegistroAsistenteRequest {
+        @NotBlank @Email
+        private String email;
+
+        @NotBlank @Size(min = 8, max = 64)
+        private String password;
+
+        @jakarta.validation.constraints.NotNull
+        private TipoParticipante tipo;
     }
 
     @Data

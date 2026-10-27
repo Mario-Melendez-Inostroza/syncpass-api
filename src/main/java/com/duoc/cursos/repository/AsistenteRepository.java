@@ -17,6 +17,9 @@ public interface AsistenteRepository extends JpaRepository<Asistente, Long> {
 
     Optional<Asistente> findByUuid(String uuid);
 
+    /** El asistente de una cuenta (grupo ASISTENTE), por el sub de Cognito. */
+    Optional<Asistente> findByUsuarioSub(String usuarioSub);
+
     /** La lista del coordinador: cada asistente con en cuántos eventos fue marcado. */
     @Query("select new com.duoc.cursos.asistente.dto.AsistenteFilaDto(a.id, a.codigo, a.tipo, a.estadoInscripcion, count(s.id), "
             + "case when a.uuid is null then false else true end) "

@@ -57,7 +57,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/proyectos", "/api/eventos").hasRole("COORDINADOR")
                 .requestMatchers(HttpMethod.PUT, "/api/proyectos/*", "/api/eventos/*").hasRole("COORDINADOR")
                 .requestMatchers(HttpMethod.DELETE, "/api/proyectos/*", "/api/eventos/*").hasRole("COORDINADOR")
-                // /api/sync/** y /api/notificar: basta con estar autenticado.
+                // Cuenta del Asistente: inscribirse a talleres y ver su QR (caso §3.1).
+                .requestMatchers("/api/mi/**").hasRole("ASISTENTE")
+                // La sincronización y las notificaciones son del equipo (monitor o coordinador): el asistente no marca asistencias.
+                .requestMatchers("/api/sync/**", "/api/notificar/**").hasAnyRole("MONITOR", "COORDINADOR")
+                // Lo demás (p. ej. el catálogo de proyectos y eventos): basta con estar autenticado.
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

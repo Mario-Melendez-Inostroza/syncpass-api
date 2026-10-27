@@ -74,15 +74,15 @@ class MigracionesFlywayTest {
     // ------------------------------------------------------------------ base nueva
 
     @Test
-    @DisplayName("Base vacía: Flyway NO baselinea y ejecuta V1 a V4 desde cero")
+    @DisplayName("Base vacía: Flyway NO baselinea y ejecuta V1 a V5 desde cero")
     void baseVacia_ejecutaTodo() throws Exception {
         String url = nuevaBase();
         Flyway flyway = flyway(url, true, MIGRACIONES);
 
         MigrateResult resultado = flyway.migrate();
 
-        assertEquals(4, resultado.migrationsExecuted);
-        assertEquals(List.of("1:SQL", "2:SQL", "3:SQL", "4:SQL"), versionesAplicadas(flyway),
+        assertEquals(5, resultado.migrationsExecuted);
+        assertEquals(List.of("1:SQL", "2:SQL", "3:SQL", "4:SQL", "5:SQL"), versionesAplicadas(flyway),
                 "en una base vacía no debe aparecer ninguna fila BASELINE");
         for (String tabla : new String[]{"usuarios", "usuario_roles", "proyectos", "eventos", "asistentes",
                 "asistencias", "encuestas"}) {
@@ -102,7 +102,7 @@ class MigracionesFlywayTest {
     // ------------------------------------------------------------------ base existente (Supabase)
 
     @Test
-    @DisplayName("Base con tablas de Hibernate y SIN historial: baselinea en V1 y ejecuta V2, V3 y V4, no V1")
+    @DisplayName("Base con tablas de Hibernate y SIN historial: baselinea en V1 y ejecuta V2 a V5, no V1")
     void baseExistenteSinHistorial_baselineaYSaltaV1() throws Exception {
         String url = nuevaBase();
         // Simula la base de Supabase: usuarios y usuario_roles ya existen (las creó Hibernate) y hay un usuario.
@@ -118,9 +118,9 @@ class MigracionesFlywayTest {
         MigrateResult resultado = flyway.migrate();
 
         // Si V1 se hubiera ejecutado, fallaría con "table usuarios already exists".
-        assertEquals(3, resultado.migrationsExecuted, "deben ejecutarse V2, V3 y V4, pero no V1");
+        assertEquals(4, resultado.migrationsExecuted, "deben ejecutarse V2 a V5, pero no V1");
         List<String> aplicadas = versionesAplicadas(flyway);
-        assertEquals(List.of("1:BASELINE", "2:SQL", "3:SQL", "4:SQL"), aplicadas);
+        assertEquals(List.of("1:BASELINE", "2:SQL", "3:SQL", "4:SQL", "5:SQL"), aplicadas);
         assertTrue(existeTabla(url, "asistencias"));
         assertEquals(1, contar(url, "usuarios"), "los datos existentes no se tocan");
     }

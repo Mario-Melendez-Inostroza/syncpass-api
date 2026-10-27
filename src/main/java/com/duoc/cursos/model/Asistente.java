@@ -36,6 +36,13 @@ public class Asistente {
     @Column(name = "uuid", length = 36, unique = true)
     private String uuid;
 
+    /**
+     * 'sub' de Cognito de la cuenta de este asistente, si se registró él mismo (V5). NULL en los que carga el
+     * servidor o da de alta un monitor. Es solo el vínculo: el correo y la contraseña viven en Cognito.
+     */
+    @Column(name = "usuario_sub", length = 64, unique = true)
+    private String usuarioSub;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo", nullable = false, length = 20)
     private TipoParticipante tipo;

@@ -43,7 +43,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         authService = mock(AuthService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new AuthController(authService))
+        mvc = MockMvcBuilders.standaloneSetup(new AuthController(authService, mock(com.duoc.cursos.inscripcion.service.MiCuentaService.class)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

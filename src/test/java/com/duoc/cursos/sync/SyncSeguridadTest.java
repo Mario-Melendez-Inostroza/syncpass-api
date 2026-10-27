@@ -118,13 +118,17 @@ class SyncSeguridadTest {
     // ------------------------------------------------------------------ autenticado basta para sincronizar
 
     @Test
-    @DisplayName("Con un token válido y SIN grupos se puede sincronizar (basta con estar autenticado)")
+    @DisplayName("Monitor y coordinador pueden sincronizar; un token SIN grupos o de otro rol recibe 403")
     void tokenValido_puedeSincronizar() throws Exception {
-        llamar(get("/api/sync/catalogo"), "tok-sin-grupos").andExpect(status().isOk());
-        llamar(postJson("/api/sync/asistencias", BODY_ASISTENCIAS), "tok-sin-grupos").andExpect(status().isOk());
+        llamar(get("/api/sync/catalogo"), "tok-usuario").andExpect(status().isOk());
+        llamar(get("/api/sync/catalogo"), "tok-coordinador").andExpect(status().isOk());
+        llamar(postJson("/api/sync/asistencias", BODY_ASISTENCIAS), "tok-usuario").andExpect(status().isOk());
         llamar(postJson("/api/sync/encuestas", BODY_ENCUESTAS), "tok-usuario").andExpect(status().isOk());
+        llamar(get("/api/sync/catalogo"), "tok-sin-grupos").andExpect(status().isForbidden());
+        llamar(postJson("/api/sync/asistencias", BODY_ASISTENCIAS), "tok-sin-grupos").andExpect(status().isForbidden());
+        llamar(get("/api/sync/catalogo"), "tok-admin").andExpect(status().isForbidden());
 
-        verify(syncService).catalogo(null);
+        verify(syncService, org.mockito.Mockito.atLeastOnce()).catalogo(null);
         verify(syncService).sincronizarEncuestas(anyList());
     }
 

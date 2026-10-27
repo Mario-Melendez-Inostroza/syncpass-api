@@ -104,6 +104,41 @@ public class AuthService {
         }
     }
 
+    /** Grupo del Asistente / Beneficiario Comunitario (caso §3.1). Debe existir en el User Pool. */
+    public static final String ROL_ASISTENTE = "ASISTENTE";
+
+    /**
+     * Crea una cuenta de Cognito ya confirmada y en el grupo indicado, y devuelve su sub. Solo Cognito: el llamador
+     * decide qué guardar en la base y, si eso falla, llama a {@link #revertirCuenta}. El correo no se copia a la base.
+     */
+    public String crearCuentaEnGrupo(String email, String password, String nombre, String grupo) {
+        SignUpRequest.Builder signUp = SignUpRequest.builder()
+                .clientId(clientId)
+                .username(email)
+                .password(password)
+                .userAttributes(
+                        AttributeType.builder().name("email").value(email).build(),
+                        AttributeType.builder().name("name").value(nombre).build());
+        if (clientSecret != null && !clientSecret.isBlank()) {
+            signUp.secretHash(generateSecretHash(email));
+        }
+        String sub = cognitoClient.signUp(signUp.build()).userSub();
+        try {
+            cognitoClient.adminConfirmSignUp(AdminConfirmSignUpRequest.builder().userPoolId(userPoolId).username(email).build());
+            cognitoClient.adminAddUserToGroup(AdminAddUserToGroupRequest.builder()
+                    .userPoolId(userPoolId).username(email).groupName(grupo).build());
+        } catch (RuntimeException ex) {
+            revertirCuenta(email, sub, ex);
+            throw ex;
+        }
+        return sub;
+    }
+
+    /** Borra la cuenta recién creada para poder reintentar (mejor esfuerzo; no oculta la causa original). */
+    public void revertirCuenta(String email, String sub, RuntimeException causa) {
+        compensarRegistroFallido(email, sub, causa);
+    }
+
     /**
      * Intenta borrar de Cognito al usuario recién creado cuando el registro no pudo completarse.
      * Es "mejor esfuerzo" (requiere cognito-idp:AdminDeleteUser): nunca oculta la excepción original.

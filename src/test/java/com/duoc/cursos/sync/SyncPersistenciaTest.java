@@ -163,6 +163,6 @@ class SyncPersistenciaTest {
         // Si alguien añade nombre, email, teléfono, documento... esta prueba obliga a justificarlo.
         // uuid: UUID aleatorio que genera el teléfono como clave de idempotencia del alta en terreno (V3). No identifica
         // a ninguna persona: no se deriva de ningún dato suyo y solo sirve para no duplicar el alta al reenviar.
-        assertEquals(Set.of("id", "codigo", "uuid", "tipo", "estadoInscripcion", "actualizadoEn"), campos);
+        assertEquals(Set.of("id", "codigo", "uuid", "usuarioSub", "tipo", "estadoInscripcion", "actualizadoEn"), campos);
     }
 }
