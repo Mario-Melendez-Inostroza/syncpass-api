@@ -33,6 +33,7 @@ Salen de los **grupos de Cognito** (`cognito:groups` → `ROLE_*`):
 |---|---|---|
 | **COORDINADOR** | Docente / coordinador(a) de proyecto | Todo lo del monitor, más gestionar proyectos y eventos, ver el quórum y descargar el reporte |
 | **MONITOR** | Estudiante voluntario en terreno | Descargar el catálogo y subir asistencias, altas de asistentes y encuestas |
+| **ASISTENTE** | Beneficiario comunitario | Registrarse él mismo, ver los talleres próximos, inscribirse (con cupos) y mostrar su QR. No accede a nada del equipo (403) |
 
 Los asistentes **no son usuarios**: son un código sintético y un tipo (Estudiante, Vecino o Docente). No existe ningún
 campo de nombre, correo, teléfono ni documento.
@@ -49,6 +50,9 @@ Todas las respuestas correctas vienen en `{success, data, message, timestamp}`; 
 | `POST /api/auth/refresh` | público | Renueva los tokens con el refresh token |
 | `POST /api/auth/logout` | con token | Revoca el refresh token |
 | `POST /api/auth/olvide-contrasena/solicitar` y `/confirmar` | público | Recuperación de contraseña |
+| `POST /api/auth/registro-asistente` | público | El asistente crea su cuenta (correo, contraseña y tipo). Queda en el grupo ASISTENTE y con un código sintético `REG-XXXXXXXX`; la base **no** guarda su correo ni su nombre |
+| `GET /api/mi/perfil` · `GET /api/mi/talleres` | ASISTENTE | Mi código y QR; talleres próximos con cupos disponibles y si ya estoy inscrito |
+| `POST/DELETE /api/mi/talleres/{id}/inscripcion` | ASISTENTE | Inscribirme o cancelar (409 si ya estaba inscrito, no hay cupos o el taller ya ocurrió) |
 | `POST /api/auth/registro` | público* | Auto-registro (rol MONITOR). *No se publica en API Gateway sin token |
 | `GET /api/sync/catalogo?desde=` | autenticado | Proyectos, eventos y asistentes; `desde` = `servidorEn` anterior (incremental) |
 | `POST /api/sync/asistentes` | autenticado | Alta de asistentes llegados **sin inscripción previa** (por lotes, idempotente) |
@@ -144,6 +148,8 @@ Los secretos viven solo en `/etc/syncpass/syncpass.env` (root, `chmod 600`) dent
 - **Nunca** se versionan `.env`, `*.pem` ni claves (`.gitignore`). Si un secreto se filtra: rotarlo, no solo borrarlo.
 - El token se valida contra el *issuer* del User Pool; los roles salen de `cognito:groups`.
 - Pendiente conocido: no se valida el `aud`/`token_use`, así que un *id token* también se acepta como credencial.
+- `/api/sync/**` y `/api/notificar` son solo de MONITOR y COORDINADOR: una cuenta de asistente recibe 403.
+- `/api/auth/registro-asistente` es pública a propósito y solo puede crear el rol ASISTENTE (lo fija el servidor).
 - `/api/auth/registro` crearía cuentas MONITOR sin control; por eso no se expone en API Gateway sin token y las cuentas
   las crea el equipo docente.
 

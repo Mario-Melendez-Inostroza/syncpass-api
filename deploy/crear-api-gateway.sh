@@ -2,6 +2,7 @@
 # Se ejecuta en AWS CloudShell (ya trae el AWS CLI y tus credenciales). Crea el HTTP API de SyncPass:
 #   - Públicas (sin token): GET /api/health y el login, refresh y recuperación de contraseña.
 #   - Todo lo demás bajo /api/** exige un access token de Cognito (authorizer JWT).
+#   - /api/auth/registro-asistente SÍ es pública (el rol lo fija el servidor y solo concede ASISTENTE).
 #   - /api/auth/registro NO se publica sin token: sin Authorization, API Gateway responde 401.
 # Uso:  BACKEND=http://<ip-elastica>:8080 bash crear-api-gateway.sh
 REGION=us-east-1
@@ -25,6 +26,7 @@ pub() { I=$(integ "$BACKEND$2" "$1"); aws apigatewayv2 create-route --region $RE
   --route-key "$1 $2" --target integrations/$I --authorization-type NONE >/dev/null && echo "publica: $1 $2"; }
 pub GET /api/health
 pub POST /api/auth/login
+pub POST /api/auth/registro-asistente   # el asistente se registra solo; el servidor fija su rol (ASISTENTE)
 pub POST /api/auth/refresh
 pub POST /api/auth/olvide-contrasena/solicitar
 pub POST /api/auth/olvide-contrasena/confirmar
