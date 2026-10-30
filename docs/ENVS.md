@@ -25,7 +25,7 @@ Consecuencia importante: el `.env` solo alimenta a los marcadores `${NOMBRE}` qu
 Desde PowerShell, en la carpeta del proyecto:
 
 ```powershell
-cd C:\Users\black\Desktop\Proyectos\SyncPass-Analisis\fs2-api
+cd <carpeta-del-proyecto>/fs2-api
 Copy-Item .env.example .env
 code .env        # o tu editor preferido
 ```
