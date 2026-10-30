@@ -33,6 +33,19 @@ después), lo guarda en PostgreSQL, decide **quién puede hacer qué** y calcula
 Metas del caso: registrar en **menos de 5 segundos**, **más de 65 %** de respuesta a la encuesta, **80 %** menos tiempo de
 consolidación y **100 %** de operación sin conexión. Son objetivos, no mediciones.
 
+## Usuario, grupo y rol: cómo se relacionan
+
+| Concepto | Qué es | Ejemplo |
+|---|---|---|
+| **Usuario** | Una cuenta: correo y contraseña. Vive en Amazon Cognito | `docente.demo@example.com` |
+| **Grupo** | Una etiqueta de Cognito que agrupa usuarios. Se escribe dentro del token de inicio de sesión (`cognito:groups`) | `COORDINADOR`, `MONITOR`, `ASISTENTE` |
+| **Rol** | Lo que el sistema entiende a partir del grupo y lo que decide qué puede hacer. El backend convierte el grupo `COORDINADOR` en el rol `ROLE_COORDINADOR` | Rol COORDINADOR: puede crear proyectos |
+| **Perfil del caso** | La persona real que cumple ese rol | El **Docente / Coordinador(a) de proyecto** es quien tiene el rol COORDINADOR |
+
+En resumen: un **usuario** pertenece a un **grupo**, y el grupo le da un **rol**. "Docente" no es un rol del sistema: es la
+persona que cumple el rol de coordinador. El nombre de la cuenta de demostración (`docente.demo@…`) es solo un correo ficticio;
+lo que le da permisos es estar en el grupo `COORDINADOR`.
+
 ## Cómo usamos la IA
 
 Trabajamos con **Claude Code** (Anthropic) como asistente de programación, y lo hacemos como se trabaja hoy de forma profesional:
