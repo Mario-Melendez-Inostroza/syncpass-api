@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Envío de notificaciones push vía ntfy.
  *
- * Se portó desde la versión del profesor SIN el endpoint GET /topic/{email}, que devolvía el tópico
+ * Se expone SIN el endpoint GET /topic/{email}, que devolvía el tópico
  * de cualquier email a quien lo pidiera. En ntfy el tópico es el único secreto del canal: quien lo
  * conoce puede leer y publicar en él, así que exponerlo por API abría el canal de cualquier usuario.
  * El cliente móvil no necesitaba ese endpoint: deriva el tópico localmente en NtfyTopics.kt con el

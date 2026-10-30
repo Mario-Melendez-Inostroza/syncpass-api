@@ -7,10 +7,6 @@ la app Android y del panel web: ninguno habla directamente con Cognito ni con la
 Java 21 · Spring Boot 4.1 · Spring Security (resource server JWT) · Spring Data JPA · Flyway · PostgreSQL (Supabase) ·
 Amazon Cognito. Todos los datos de demostración son **ficticios** (caso §5.1).
 
-> Parte de una base del profesor (`docentedev/fs2-api`). Se conservan su estructura de autenticación contra Cognito y su
-> documentación en `docs/`; el dominio de SyncPass, la sincronización, la seguridad por roles y el despliegue son
-> desarrollo propio.
-
 ## El sistema completo
 
 ```
@@ -39,16 +35,33 @@ consolidación y **100 %** de operación sin conexión. Son objetivos, no medici
 
 ## Cómo usamos la IA
 
-Usamos **Claude Code** (Anthropic) como asistente de programación, y lo decimos con claridad:
+Trabajamos con **Claude Code** (Anthropic) como asistente de programación, y lo hacemos como se trabaja hoy de forma profesional:
+**no se le da una orden suelta, se le da contexto, reglas y un proceso** en archivos del propio repositorio. La IA no recuerda
+conversaciones anteriores; lo que está escrito en estos archivos es lo que lee al empezar cada tarea.
 
-- **Qué hizo la IA:** a partir del `caso.md` propuso la arquitectura, escribió gran parte del código, las pruebas y la documentación,
-  y ayudó a diagnosticar fallos reales de despliegue (por ejemplo, que el registro devolvía 503 porque la EC2 no tenía un rol IAM
-  para hablar con Cognito, algo que ninguna prueba automática podía detectar).
-- **Qué hicimos nosotros:** definimos qué pedía el caso, decidimos los roles, corregimos a la IA cuando entendió mal (el
-  **asistente también es un rol**), creamos y configuramos la infraestructura de AWS, desplegamos y revisamos cada cambio antes de
-  subirlo con su Pull Request.
-- **Cómo evitamos confiar a ciegas:** pruebas automáticas, pruebas "rompiendo la regla a propósito" para ver que fallan, y una
-  sección honesta de *lo que no está comprobado*.
+| Archivo | Qué contiene |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) y `CLAUDE.md` | Guía de entrada: qué es el proyecto, stack, comandos, estructura, convenciones y qué comprobar antes de dar algo por terminado |
+| [`docs/ia/CONTEXTO.md`](docs/ia/CONTEXTO.md) | El caso resumido: problema, roles, datos, metas y restricciones |
+| [`docs/ia/REGLAS.md`](docs/ia/REGLAS.md) | **Instrucciones y restricciones**: sin datos personales, sin secretos, autorización en el servidor, pruebas obligatorias, las acciones de permisos las ejecuta una persona |
+| [`docs/ia/ROADMAP.md`](docs/ia/ROADMAP.md) | Fases del proyecto con su estado real y lo pendiente |
+| [`docs/ia/DECISIONES.md`](docs/ia/DECISIONES.md) | Decisiones de diseño con su porqué (offline-first, idempotencia, roles, sin datos personales…) |
+| [`docs/ia/FLUJO-DE-TRABAJO.md`](docs/ia/FLUJO-DE-TRABAJO.md) | El ciclo de trabajo, quién hace qué y cómo se verifica lo que escribe la IA |
+| [`docs/ia/PROMPTS.md`](docs/ia/PROMPTS.md) | Plantillas de instrucciones por tipo de tarea (funcionalidad, error, pruebas, revisión, despliegue) |
+
+**El ciclo de cada tarea:** especificar → la IA propone un plan y una persona lo aprueba → implementar en pasos pequeños →
+**verificar ejecutando** (compilación, pruebas, lint, prueba real contra la nube) → una persona revisa el cambio → Pull Request con
+integración continua → documentar lo hecho y lo que no se pudo comprobar.
+
+**Qué hace la IA:** propone arquitectura y alternativas, escribe código, pruebas y documentación, diagnostica errores leyendo
+registros y código, y ejecuta las verificaciones.
+**Qué hacemos nosotros:** definimos y corregimos los requisitos (por ejemplo, que el asistente también es un rol), aprobamos los
+planes, revisamos cada cambio, ejecutamos las acciones de permisos en AWS, probamos en el teléfono y en el navegador, y somos
+responsables de lo que se entrega y de poder explicarlo.
+
+**Cómo controlamos sus errores:** nada se da por bueno sin ejecutarlo; se rompen reglas a propósito para comprobar que las pruebas
+las detectan; se compara el contrato entre la app y el backend; se prueba el flujo real contra el API Gateway desplegado; y antes
+de publicar un repositorio se revisa que no haya secretos ni datos reales.
 
 ## Arquitectura: controller → service → repository
 
@@ -106,8 +119,8 @@ declara qué rol exige (`SecurityConfig`). Sin token responde **401**; con un ro
 
 | Rol | Cómo se crea la cuenta | Qué puede hacer |
 |---|---|---|
-| **COORDINADOR** | La crea el equipo docente | Todo: mantenedores, quórum, informes, CSV |
-| **MONITOR** | La crea el equipo docente | Catálogo y sincronización de asistencias, altas y encuestas |
+| **COORDINADOR** | La crea el equipo de coordinación | Todo: mantenedores, quórum, informes, CSV |
+| **MONITOR** | La crea el equipo de coordinación | Catálogo y sincronización de asistencias, altas y encuestas |
 | **ASISTENTE** | Se registra solo (`/api/auth/registro-asistente`) | Ver talleres, inscribirse y su QR |
 
 ## Mantenedores (CRUD) del backend
@@ -254,7 +267,7 @@ Los secretos viven solo en `/etc/syncpass/syncpass.env` (root, `chmod 600`) dent
 - `/api/sync/**` y `/api/notificar` son solo de MONITOR y COORDINADOR: una cuenta de asistente recibe 403.
 - `/api/auth/registro-asistente` es pública a propósito y solo puede crear el rol ASISTENTE (lo fija el servidor).
 - `/api/auth/registro` crearía cuentas MONITOR sin control; por eso no se expone en API Gateway sin token y las cuentas
-  las crea el equipo docente.
+  las crea el equipo de coordinación.
 
 ## Límites conocidos
 
@@ -268,8 +281,7 @@ Los secretos viven solo en `/etc/syncpass/syncpass.env` (root, `chmod 600`) dent
 
 ## Documentación adicional
 
-[`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) y [`docs/CONGNITO_INTEGRATION.md`](docs/CONGNITO_INTEGRATION.md) (base del
-profesor, autenticación contra Cognito) · [`docs/ENVS.md`](docs/ENVS.md) · [`docs/MIGRACIONES.md`](docs/MIGRACIONES.md) ·
+[`docs/ENVS.md`](docs/ENVS.md) · [`docs/MIGRACIONES.md`](docs/MIGRACIONES.md) ·
 [`deploy/README.md`](deploy/README.md).
 
 ## Equipo
