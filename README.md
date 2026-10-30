@@ -25,6 +25,109 @@ Usuario ─► App Android (Kotlin)┘      (authorizer JWT)                    
 | **syncpass-mobile** | App Android offline-first para el monitor (QR, lista, alta en terreno, encuestas) |
 | **syncpass-web** | Página de inicio pública y panel del coordinador (proyectos, eventos, quórum, CSV) |
 
+## El caso que resolvemos
+
+**SyncPass** nace del caso de Ticdgm (CITT Plaza Vespucio, DSY1105): los proyectos de vinculación comunitaria toman la
+asistencia **en papel** y consolidan todo a mano. Eso produce hojas perdidas, filas de 15 a 20 minutos en la entrada,
+encuestas con menos de 15 % de respuesta (se envían semanas después) y barrios con poca señal donde una web normal no sirve.
+
+La solución tiene tres piezas. **Este backend es el cerebro:** recibe lo que registran los teléfonos (aunque lo envíen horas
+después), lo guarda en PostgreSQL, decide **quién puede hacer qué** y calcula quórum e informes para el coordinador.
+
+Metas del caso: registrar en **menos de 5 segundos**, **más de 65 %** de respuesta a la encuesta, **80 %** menos tiempo de
+consolidación y **100 %** de operación sin conexión. Son objetivos, no mediciones.
+
+## Cómo usamos la IA
+
+Usamos **Claude Code** (Anthropic) como asistente de programación, y lo decimos con claridad:
+
+- **Qué hizo la IA:** a partir del `caso.md` propuso la arquitectura, escribió gran parte del código, las pruebas y la documentación,
+  y ayudó a diagnosticar fallos reales de despliegue (por ejemplo, que el registro devolvía 503 porque la EC2 no tenía un rol IAM
+  para hablar con Cognito, algo que ninguna prueba automática podía detectar).
+- **Qué hicimos nosotros:** definimos qué pedía el caso, decidimos los roles, corregimos a la IA cuando entendió mal (el
+  **asistente también es un rol**), creamos y configuramos la infraestructura de AWS, desplegamos y revisamos cada cambio antes de
+  subirlo con su Pull Request.
+- **Cómo evitamos confiar a ciegas:** pruebas automáticas, pruebas "rompiendo la regla a propósito" para ver que fallan, y una
+  sección honesta de *lo que no está comprobado*.
+
+## Arquitectura: controller → service → repository
+
+El backend está en **tres capas**, cada una con una sola responsabilidad. Una petición las atraviesa en orden:
+
+```
+ Cliente (app / web)
+      │  HTTP + JSON
+      ▼
+ ┌─────────────┐   valida el cuerpo (@Valid), llama al service y devuelve el estado HTTP
+ │ Controller  │   no contiene reglas de negocio
+ └─────┬───────┘
+       ▼
+ ┌─────────────┐   reglas de negocio: "no se elimina un proyecto con eventos",
+ │  Service    │   "no hay cupos", "el código lo genera el servidor". Maneja transacciones
+ └─────┬───────┘
+       ▼
+ ┌─────────────┐   acceso a datos: interfaces de Spring Data JPA que generan el SQL
+ │ Repository  │
+ └─────┬───────┘
+       ▼
+  PostgreSQL (Supabase)      ← las tablas las crea Flyway, no Hibernate
+```
+
+| Capa | Qué hace | Ejemplo real en el código |
+|---|---|---|
+| **Controller** (`@RestController`) | Recibe la petición, valida el cuerpo y responde. Mapea errores a HTTP | `AsistenteController`: `GET/POST/PUT/DELETE /api/asistentes` |
+| **Service** (`@Service`) | La lógica del negocio y las transacciones | `AsistenteService`: genera el código `INS-######` y rechaza borrar a quien tiene asistencias |
+| **Repository** (`JpaRepository`) | Consultas a la base | `AsistenteRepository`: `findByUsuarioSub`, búsquedas por código |
+| **DTO** | El contrato JSON: lo que entra y sale. Separa la API de las tablas | `AsistenteAltaRequest` (entrada), `AsistenteFilaDto` (salida) |
+| **Model / Entity** (`@Entity`) | La tabla como clase | `Asistente`, `Proyecto`, `Evento`, `Asistencia`, `Encuesta`, `Inscripcion` |
+| **Excepciones** | Errores de negocio → respuesta clara | `GlobalExceptionHandler`: 404, 409 (`ConflictoException`), 400 de validación |
+
+Por qué así: **cambiar una regla no toca el HTTP ni el SQL**, y cada capa se prueba por separado. Los controllers no hablan con
+la base, y los services no saben nada de HTTP. Los paquetes se agrupan por **funcionalidad** (`asistente/`, `evento/`,
+`proyecto/`, `inscripcion/`, `sync/`, `informe/`), cada uno con su `controller`, `service` y `dto`.
+
+### Tecnologías y por qué
+
+| Tecnología | Para qué | Por qué |
+|---|---|---|
+| **Spring Boot 4 / Java 21** | Servidor web y estructura | Estándar de la industria; configuración mínima; inyección de dependencias |
+| **Spring Security (resource server JWT)** | Autenticación y autorización | Valida el token de Cognito y traduce `cognito:groups` a `ROLE_*` |
+| **Spring Data JPA** | Repositorios | Evita escribir SQL repetitivo |
+| **Flyway** | Migraciones de la base (`V1`…`V5`) | El esquema queda versionado y es reproducible |
+| **PostgreSQL (Supabase)** | Base de datos | Relacional, gratuita, gestionada |
+| **Amazon Cognito** | Usuarios, contraseñas y grupos | No guardamos contraseñas: lo hace un servicio especializado |
+| **API Gateway + EC2** | Entrada pública y servidor | El gateway valida el token antes de que llegue a nuestro código |
+| **JUnit + MockMvc + H2** | Pruebas | Prueban endpoints reales sin red ni Docker |
+
+## Roles y cómo iniciar sesión
+
+`POST /api/auth/login` entrega los tokens de Cognito. El grupo del usuario (`cognito:groups`) se convierte en rol y cada ruta
+declara qué rol exige (`SecurityConfig`). Sin token responde **401**; con un rol que no corresponde, **403**.
+
+| Rol | Cómo se crea la cuenta | Qué puede hacer |
+|---|---|---|
+| **COORDINADOR** | La crea el equipo docente | Todo: mantenedores, quórum, informes, CSV |
+| **MONITOR** | La crea el equipo docente | Catálogo y sincronización de asistencias, altas y encuestas |
+| **ASISTENTE** | Se registra solo (`/api/auth/registro-asistente`) | Ver talleres, inscribirse y su QR |
+
+## Mantenedores (CRUD) del backend
+
+| Recurso | Endpoints | Reglas de negocio |
+|---|---|---|
+| **Proyectos** | `POST/PUT/DELETE /api/proyectos` | Fecha de término ≥ inicio; no se elimina con eventos (409) |
+| **Eventos** | `POST/PUT/DELETE /api/eventos` | Cupos ≥ 1, quórum ≤ cupos, GPS completo; no se elimina con asistencias (409) |
+| **Asistentes** | `GET/POST/PUT/DELETE /api/asistentes` | Código generado por el servidor; alta de hasta 200; no se elimina con asistencias |
+| **Inscripciones** | `POST/DELETE /api/mi/talleres/{id}/inscripcion` | Cupos, no repetir, no inscribirse a un taller pasado |
+
+Los tres mantenedores del coordinador se consumen desde la web y desde la app (pestaña *Gestión*).
+
+## Pruebas y CI
+
+- **Pruebas:** `./gradlew.bat clean build`. Incluyen pruebas de cada capa: servicios, controllers con `MockMvc`, seguridad por
+  rol, migraciones y contrato JSON. Ver más abajo el detalle.
+- **GitHub Actions** (`.github/workflows/ci.yml`): en cada `push` a `main` y en cada Pull Request compila el proyecto con
+  Java 21 y corre todas las pruebas. Si una falla, la PR sale en rojo antes de unirse.
+
 ## Roles
 
 Salen de los **grupos de Cognito** (`cognito:groups` → `ROLE_*`):
@@ -118,10 +221,10 @@ Variables (solo los nombres; los valores van en tu `.env`, que **no se sube a Gi
 (vacía si el app client no tiene secreto), `CORS_ENABLED`, `CORS_ALLOWED_ORIGINS`. Guía completa en
 [`docs/ENVS.md`](docs/ENVS.md).
 
-## Pruebas
+## Detalle de las pruebas
 
 ```
-./gradlew.bat clean build      # 190 pruebas, 0 fallos
+./gradlew.bat clean build      # 201 pruebas, 0 fallos
 ```
 
 Sin Docker ni red: H2 en modo PostgreSQL y un `JwtDecoder` simulado. Cubren el contrato JSON de cada endpoint, la
@@ -158,6 +261,8 @@ Los secretos viven solo en `/etc/syncpass/syncpass.env` (root, `chmod 600`) dent
 - **Los borrados no se propagan a teléfonos ya sincronizados**: el catálogo incremental solo envía lo nuevo o
   modificado. Por eso solo se borra lo que no tiene asistencias.
 - No hay modelo de propiedad usuario↔proyecto: todo coordinador puede editar cualquier proyecto.
+- **La EC2 necesita el rol IAM `LabInstanceProfile`** (EC2 → Acciones → Seguridad → Modificar rol de IAM). Sin él, el servidor arranca
+  y el login funciona, pero crear cuentas falla con 503 (`Unable to load credentials`): el registro necesita confirmar al usuario en Cognito.
 - En un AWS Academy Learner Lab la EC2 se apaga al terminar la sesión; el servicio arranca solo al iniciarla, pero la
   instancia hay que iniciarla a mano.
 
@@ -174,5 +279,5 @@ Proyecto del curso DSY1105 · Desarrollo de Aplicaciones Móviles · Duoc UC.
 | Integrante | GitHub | Aporte en este repositorio |
 |---|---|---|
 | Mario Meléndez | [Mario-Melendez-Inostroza](https://github.com/Mario-Melendez-Inostroza) | Desarrollo e integración del sistema |
-| _(nombre completo)_ | [bx1423](https://github.com/bx1423) | _(completar: qué aportó o revisó)_ |
-| _(nombre completo)_ | [Monnacohu](https://github.com/Monnacohu) | _(completar: qué aportó o revisó)_ |
+| _(nombre completo)_ | [bx1423](https://github.com/bx1423) | Pruebas del DTO del perfil del asistente (`MiPerfilDtoTest`) |
+| _(nombre completo)_ | [Monnacohu](https://github.com/Monnacohu) | Pruebas de los enums `TipoParticipante` y `EstadoInscripcion` (`TipoParticipanteTest`) |

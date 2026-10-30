@@ -1,0 +1,25 @@
+name: CI
+
+# En cada push a main y en cada Pull Request: compila y corre las pruebas del backend.
+# Las pruebas usan H2 en memoria y no necesitan secretos ni acceso a AWS.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Compilar y probar
+        run: |
+          chmod +x gradlew
+          ./gradlew clean build --no-daemon
